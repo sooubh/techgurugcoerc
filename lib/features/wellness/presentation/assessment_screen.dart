@@ -116,7 +116,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
     String message = 'Thank you for taking a moment to check in. Remember to prioritize your own wellbeing!';
 
     if (assessment.riskLevel == RiskLevel.medium) {
-      message = 'You\\'ve been carrying a heavy load lately. Please consider talking to your doctor or trying some of the self-care resources in the Wellness tab.';
+      message = 'You\'ve been carrying a heavy load lately. Please consider talking to your doctor or trying some of the self-care resources in the Wellness tab.';
     }
 
     showDialog(

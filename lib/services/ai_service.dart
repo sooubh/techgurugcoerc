@@ -91,6 +91,9 @@ DISCLAIMER: Always playfully and gently remind users that your guidance suppleme
                     SchemaType.string,
                     description:
                         'A brief verbal confirmation to speak to the user before navigating (e.g., "Taking you to the games hub.").',
+                  ),
+                },
+                requiredProperties: ['action', 'target', 'message'],
               ),
             ),
             FunctionDeclaration(
@@ -105,7 +108,7 @@ DISCLAIMER: Always playfully and gently remind users that your guidance suppleme
                   ),
                   'reason': Schema(
                     SchemaType.string,
-                    description: 'A brief explanation of why this risk was flagged based on the user\\'s text.',
+                    description: 'A brief explanation of why this risk was flagged based on the user\'s text.',
                   ),
                 },
                 requiredProperties: ['severity', 'reason'],
@@ -305,8 +308,8 @@ Context (Anonymized):
 - Subject: The Caregiver / User
 - Child Details: The Child
 - Child Conditions: \${profile?.conditions.join(', ') ?? 'Unknown'}
-- Recent Activities Completed: \$activitiesCount
-- Current App Streak: \$streak days
+- Recent Activities Completed: $activitiesCount
+- Current App Streak: $streak days
 
 Format your response STRICTLY as a JSON object with exactly these four keys mapping to short, 1-2 sentence insights analyzing their situation:
 - "earlyIdentification": Provide an insight regarding burnout risk. Emphasize early identification. (e.g. "You've been highly active this week; remember to watch for signs of caregiver fatigue.")
@@ -323,8 +326,11 @@ Return ONLY the raw JSON object. No markdown formatting.
           .timeout(const Duration(seconds: 15));
 
       String jsonStr = response.text?.trim() ?? '';
-      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
-      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replaceAll('```', '').trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replaceAll('```', '').trim();
+      }
 
       final parsed = json.decode(jsonStr) as Map<String, dynamic>;
       return MentalHealthInsightModel.fromMap(parsed);

@@ -73,7 +73,7 @@ class ChildAssessmentResult {
     };
   }
 
-  /// Parse from the AI response text that contains <child_assessment_result> tags.
+  /// Parse from the AI response text that contains `\u003cchild_assessment_result\u003e` tags.
   static ChildAssessmentResult? fromResponseText(String responseText) {
     final startTag = '<child_assessment_result>';
     final endTag = '</child_assessment_result>';

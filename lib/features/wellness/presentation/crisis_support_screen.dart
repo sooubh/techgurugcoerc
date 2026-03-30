@@ -104,7 +104,7 @@ class CrisisSupportBottomSheet extends StatelessWidget {
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('I\\'m okay for now'),
+              child: const Text('I\'m okay for now'),
             ),
           ],
         ),

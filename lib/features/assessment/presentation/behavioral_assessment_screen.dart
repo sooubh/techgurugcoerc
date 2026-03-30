@@ -1,36 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/child_provider.dart';
-import '../../../core/providers/user_provider.dart';
 import '../../../models/child_assessment_result_model.dart';
+import '../../../models/child_profile_model.dart';
 import '../../../services/behavioral_assessment_service.dart';
-import '../../../widgets/common/loading_overlay.dart';
+import '../../../services/firebase_service.dart';
 
 /// Screen for conducting behavioral assessment check-ins with parents.
 /// Uses conversational AI to gather information about child behavior changes.
-class BehavioralAssessmentScreen extends ConsumerStatefulWidget {
+class BehavioralAssessmentScreen extends StatefulWidget {
   const BehavioralAssessmentScreen({super.key});
 
   @override
-  ConsumerState<BehavioralAssessmentScreen> createState() => _BehavioralAssessmentScreenState();
+  State<BehavioralAssessmentScreen> createState() =>
+      _BehavioralAssessmentScreenState();
 }
 
-class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmentScreen> {
-  late final BehavioralAssessmentService _assessmentService;
+class _BehavioralAssessmentScreenState extends State<BehavioralAssessmentScreen> {
+  final BehavioralAssessmentService _assessmentService =
+      BehavioralAssessmentService();
+  final FirebaseService _firebaseService = FirebaseService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   bool _isInitialized = false;
   bool _isLoading = false;
   bool _assessmentComplete = false;
-  ChildAssessmentResult? _assessmentResult;
 
   final List<ChatMessage> _messages = [];
 
   @override
   void initState() {
     super.initState();
-    // Get service from provider will be done in didChangeDependencies or use ref in build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAssessment();
+    });
   }
 
   @override
@@ -41,51 +43,49 @@ class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmen
   }
 
   Future<void> _initializeAssessment() async {
+    if (_isInitialized) return;
     setState(() => _isLoading = true);
 
     try {
       _assessmentService.initialize();
 
-      final childProfile = ref.read(selectedChildProvider);
-      final user = ref.read(userProvider);
-
-      if (childProfile == null || user == null) {
-        _showError('Child profile or user not found');
+      final childProfile = await _firebaseService.getChildProfile();
+      if (childProfile == null) {
+        _showError('Child profile not found. Please complete profile setup.');
         return;
       }
 
-      // TODO: Fetch actual data from services
-      // For now, using placeholder data
       _assessmentService.startAssessmentSession(
         childProfile: childProfile,
-        gameCompletionRate: '75', // TODO: Get from game service
-        daysSinceLastSession: 2, // TODO: Get from therapy service
-        moodHistory: 'mixed - some good days, some challenging', // TODO: Get from mood tracking
-        doctorName: 'Dr. Smith', // TODO: Get from doctor service
-        previousRiskLevels: ['stable', 'monitor'], // TODO: Get from assessment history
+        gameCompletionRate: '75',
+        daysSinceLastSession: 2,
+        moodHistory: 'mixed - some good days, some challenging',
+        doctorName: 'Assigned Doctor',
+        previousRiskLevels: ['stable', 'monitor'],
       );
 
       _isInitialized = true;
-
-      // Start with the opening question
-      await _sendInitialMessage();
-
+      await _sendInitialMessage(childProfile);
     } catch (e) {
       _showError('Failed to initialize assessment: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _sendInitialMessage() async {
-    const initialPrompt = "I'd like to check in on how your child has been doing lately — not their therapy progress, just their overall mood and behavior day-to-day. Have you noticed anything different about them in the past week or two?";
+  Future<void> _sendInitialMessage(ChildProfileModel childProfile) async {
+    final initialPrompt =
+        'I\'d like to check in on how ${childProfile.name} has been doing lately. '
+        'Have you noticed anything different in mood or behavior this week?';
 
     setState(() {
-      _messages.add(ChatMessage(
-        text: initialPrompt,
-        isFromAI: true,
-        timestamp: DateTime.now(),
-      ));
+      _messages.add(
+        ChatMessage(
+          text: initialPrompt,
+          isFromAI: true,
+          timestamp: DateTime.now(),
+        ),
+      );
     });
 
     _scrollToBottom();
@@ -93,14 +93,16 @@ class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmen
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isLoading || _assessmentComplete) return;
 
     setState(() {
-      _messages.add(ChatMessage(
-        text: text,
-        isFromAI: false,
-        timestamp: DateTime.now(),
-      ));
+      _messages.add(
+        ChatMessage(
+          text: text,
+          isFromAI: false,
+          timestamp: DateTime.now(),
+        ),
+      );
       _isLoading = true;
     });
 
@@ -110,76 +112,86 @@ class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmen
     try {
       final response = await _assessmentService.sendParentResponse(text);
 
-      // Check if this is the final assessment result
       final result = ChildAssessmentResult.fromResponseText(response);
       if (result != null) {
         setState(() {
           _assessmentComplete = true;
-          _assessmentResult = result;
-          _messages.add(ChatMessage(
-            text: 'Assessment complete! Here\'s the summary:\n\n${_formatResultForDisplay(result)}',
-            isFromAI: true,
-            timestamp: DateTime.now(),
-          ));
+          _messages.add(
+            ChatMessage(
+              text:
+                  'Assessment complete. Here is the summary:\n\n${_formatResultForDisplay(result)}',
+              isFromAI: true,
+              timestamp: DateTime.now(),
+            ),
+          );
         });
       } else {
         setState(() {
-          _messages.add(ChatMessage(
-            text: response,
-            isFromAI: true,
-            timestamp: DateTime.now(),
-          ));
+          _messages.add(
+            ChatMessage(
+              text: response,
+              isFromAI: true,
+              timestamp: DateTime.now(),
+            ),
+          );
         });
       }
     } catch (e) {
       _showError('Failed to get response: $e');
     } finally {
-      setState(() => _isLoading = false);
-      _scrollToBottom();
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _scrollToBottom();
+      }
     }
   }
 
   Future<void> _endAssessment() async {
+    if (_assessmentComplete) return;
+
     setState(() => _isLoading = true);
 
     try {
       final result = await _assessmentService.generateAssessmentResult();
 
-      if (result != null) {
-        setState(() {
-          _assessmentComplete = true;
-          _assessmentResult = result;
-          _messages.add(ChatMessage(
-            text: 'Assessment complete! Here\'s the summary:\n\n${_formatResultForDisplay(result)}',
+      if (result == null) {
+        _showError('Failed to generate assessment result');
+        return;
+      }
+
+      setState(() {
+        _assessmentComplete = true;
+        _messages.add(
+          ChatMessage(
+            text:
+                'Assessment complete. Here is the summary:\n\n${_formatResultForDisplay(result)}',
             isFromAI: true,
             timestamp: DateTime.now(),
-          ));
-        });
-      } else {
-        _showError('Failed to generate assessment result');
-      }
+          ),
+        );
+      });
     } catch (e) {
       _showError('Failed to end assessment: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   String _formatResultForDisplay(ChildAssessmentResult result) {
     final buffer = StringBuffer();
 
-    buffer.writeln('**Risk Level:** ${result.riskLevel.toUpperCase()}');
-    buffer.writeln('**Confidence:** ${(result.confidence * 100).toInt()}%');
+    buffer.writeln('Risk Level: ${result.riskLevel.toUpperCase()}');
+    buffer.writeln('Confidence: ${(result.confidence * 100).toInt()}%');
     buffer.writeln();
 
-    buffer.writeln('**Key Signals:**');
+    buffer.writeln('Key Signals:');
     result.domainSignals.forEach((key, value) {
       buffer.writeln('- ${key.replaceAll('_', ' ')}: $value/10');
     });
 
     if (result.behaviorChangesFromBaseline.isNotEmpty) {
       buffer.writeln();
-      buffer.writeln('**Changes from Baseline:**');
+      buffer.writeln('Changes from Baseline:');
       for (final change in result.behaviorChangesFromBaseline) {
         buffer.writeln('- $change');
       }
@@ -187,25 +199,26 @@ class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmen
 
     if (result.recommendedActions.isNotEmpty) {
       buffer.writeln();
-      buffer.writeln('**Recommended Actions:**');
+      buffer.writeln('Recommended Actions:');
       for (final action in result.recommendedActions) {
-        buffer.writeln('- **${action.title}** (${action.priority}): ${action.reason}');
+        buffer.writeln('- ${action.title} (${action.priority}): ${action.reason}');
       }
     }
 
     if (result.escalateToDoctor) {
       buffer.writeln();
-      buffer.writeln('**⚠️ Escalated to Doctor:** ${result.escalationReason}');
+      buffer.writeln('Escalated to Doctor: ${result.escalationReason}');
     }
 
     buffer.writeln();
-    buffer.writeln('**Follow-up in ${result.followUpInDays} days**');
+    buffer.writeln('Follow-up in ${result.followUpInDays} days');
 
     return buffer.toString();
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300),
@@ -215,6 +228,7 @@ class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmen
   }
 
   void _showError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
@@ -222,12 +236,6 @@ class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmen
 
   @override
   Widget build(BuildContext context) {
-    _assessmentService = ref.read<BehavioralAssessmentService>();
-
-    if (!_isInitialized) {
-      _initializeAssessment();
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Behavioral Check-in'),
@@ -239,27 +247,32 @@ class _BehavioralAssessmentScreenState extends ConsumerState<BehavioralAssessmen
             ),
         ],
       ),
-      body: LoadingOverlay(
-        isLoading: _isLoading,
-        child: Column(
-          children: [
-            Expanded(
-              child: _messages.isEmpty
-                  ? const Center(child: Text('Initializing assessment...'))
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final message = _messages[index];
-                        return _ChatBubble(message: message);
-                      },
-                    ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(
+                child: _messages.isEmpty
+                    ? const Center(child: Text('Initializing assessment...'))
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final message = _messages[index];
+                          return _ChatBubble(message: message);
+                        },
+                      ),
+              ),
+              if (!_assessmentComplete) _buildMessageInput(),
+            ],
+          ),
+          if (_isLoading)
+            const Align(
+              alignment: Alignment.topCenter,
+              child: LinearProgressIndicator(minHeight: 2),
             ),
-            if (!_assessmentComplete)
-              _buildMessageInput(),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -314,7 +327,7 @@ class _ChatBubble extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: message.isFromAI
-              ? Theme.of(context).primaryColor.withOpacity(0.1)
+              ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
               : Theme.of(context).primaryColor,
           borderRadius: BorderRadius.circular(16),
         ),

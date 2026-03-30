@@ -257,7 +257,7 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
   Future<void> _addActivity(_PlanActivity activity) async {
     setState(() => _activities.add(activity));
     await _savePlan();
-    if (!context.mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Activity added! ✅'), backgroundColor: AppColors.success),
     );
@@ -266,7 +266,7 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
   Future<void> _updateActivity(int index, _PlanActivity activity) async {
     setState(() => _activities[index] = activity);
     await _savePlan();
-    if (!context.mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Activity updated! ✏️'), backgroundColor: AppColors.primary),
     );
@@ -275,7 +275,7 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
   Future<void> _deleteActivity(int index) async {
     setState(() => _activities.removeAt(index));
     await _savePlan();
-    if (!context.mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Activity removed! 🗑️'), backgroundColor: AppColors.textTertiary),
     );

@@ -25,10 +25,7 @@ class _DoctorAlertsTabState extends State<DoctorAlertsTab> {
 
   Future<void> _resolveAlert(RiskAlertModel alert) async {
     try {
-      if (alert.id == null) return;
-      
-      final currentUserId = _firebaseService.currentUser?.uid ?? 'unknown_doc';
-      await _firebaseService.resolveRiskAlert(alert.id!, currentUserId);
+      await _firebaseService.resolveRiskAlert(alert.id, alert.userId);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

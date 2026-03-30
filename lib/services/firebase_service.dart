@@ -1162,6 +1162,17 @@ class FirebaseService {
     return snapshot.docs.map((doc) => RiskAlertModel.fromFirestore(doc)).toList();
   }
 
+  /// Stream all alerts (used by doctor alert dashboard).
+  Stream<List<RiskAlertModel>> getRiskAlertsForDoctor({int limit = 50}) {
+    return _firestore
+        .collection('risk_alerts')
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => RiskAlertModel.fromFirestore(doc)).toList());
+  }
+
   /// Mark an alert as resolved.
   Future<void> resolveRiskAlert(String alertId, String parentId) async {
     await _firestore

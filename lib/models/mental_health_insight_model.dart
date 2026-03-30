@@ -15,7 +15,7 @@ class MentalHealthInsightModel {
     return MentalHealthInsightModel(
       earlyIdentification: map['earlyIdentification'] ?? 'Analyzing recent behavior for risk patterns...',
       supportAccess: map['supportAccess'] ?? 'Reviewing personalized support recommendations...',
-      ethicalPrivacy: map['ethicalPrivacy'] ?? 'Your child\\'s data is processed securely and privately locally.',
+      ethicalPrivacy: map['ethicalPrivacy'] ?? 'Your child\'s data is processed securely and privately locally.',
       wellBeing: map['wellBeing'] ?? 'Monitoring weekly engagement for wellness trends...',
     );
   }

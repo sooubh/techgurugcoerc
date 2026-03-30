@@ -53,8 +53,10 @@ import 'features/wellness/presentation/assessment_screen.dart';
 import 'services/notification_service.dart';
 import 'services/firebase_service.dart';
 import 'services/behavioral_assessment_service.dart';
+import 'services/voice_assistant_service.dart';
 import 'services/cache/smart_data_repository.dart';
 import 'services/cache/sync_manager.dart';
+import 'services/cache/local_cache_service.dart';
 
 // ─── WorkManager Callback (top-level, separate isolate) ──────────────────────
 // Must be top-level (not inside a class) and annotated with
@@ -374,6 +376,10 @@ void main() async {
     // Initialize Behavioral Assessment Service
     final behavioralAssessmentService = BehavioralAssessmentService();
     behavioralAssessmentService.initialize();
+
+    // Initialize voice assistant service
+    final voiceService = VoiceAssistantService();
+    await voiceService.initialize();
 
     // Initialize push notifications
     final notificationService = NotificationService();

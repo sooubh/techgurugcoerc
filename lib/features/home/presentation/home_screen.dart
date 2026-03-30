@@ -1842,10 +1842,6 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
       }
     }
   }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -2025,6 +2021,7 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
         )),
       ),
     );
+  }
 
   Future<void> _checkConsentAndFetch() async {
     final prefs = await SharedPreferences.getInstance();
@@ -2118,6 +2115,5 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
         ],
       ),
     ).animate().fadeIn();
-  }
   }
 }

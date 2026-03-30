@@ -459,6 +459,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildStepMap(ThemeData theme, bool isDark) {
     return SizedBox(
       height: 62,
@@ -517,6 +518,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildReferenceDiagram(ThemeData theme, bool isDark) {
     return Container(
       width: double.infinity,
@@ -605,6 +607,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildReferenceImages(ThemeData theme, bool isDark) {
     final media = widget.module.mediaUrls;
     if (media.isEmpty) {

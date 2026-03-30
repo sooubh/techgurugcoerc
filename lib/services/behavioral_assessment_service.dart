@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../core/config/env_config.dart';
@@ -286,7 +285,7 @@ Child name: ${childProfile.name}
 Age: ${childProfile.age}
 Conditions: ${childProfile.conditions.join(', ')}
 Communication level: ${childProfile.communicationLevel}
-Game completion rate (last 7 days): ${gameCompletionRate}%
+Game completion rate (last 7 days): $gameCompletionRate%
 Days since last therapy session: $daysSinceLastSession
 Mood entries (last 7): $moodHistory
 Completed module IDs: ${childProfile.completedModuleIds.join(', ')}
