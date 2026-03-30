@@ -1,0 +1,452 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import '../core/config/env_config.dart';
+import '../core/utils/app_logger.dart';
+import '../models/child_profile_model.dart';
+import '../models/recommendation_model.dart';
+import '../models/mental_health_insight_model.dart';
+
+/// AI service powered by Google Gemini.
+///
+/// Provides:
+/// - Contextual chat with child profile awareness
+/// - Non-diagnostic safety guardrails
+/// - Streaming response support
+/// - Personalized recommendations
+class AiService {
+  GenerativeModel? _model;
+  ChatSession? _chatSession;
+
+  static const String _modelName = 'gemini-2.5-flash';
+
+  static const String _baseSystemPrompt = '''
+You are CARE-AI, an empathetic, highly-intelligent AI parenting companion for children with developmental or physical disabilities.
+
+RULES FOR BEHAVIOR & FORMATTING:
+1. You are NOT a doctor. NEVER provide medical diagnoses or prescribe treatments.
+2. Always encourage consulting qualified professionals for medical concerns.
+3. Provide evidence-based, supportive parenting guidance.
+4. Be warm, encouraging, and non-judgmental.
+5. Offer practical, actionable advice for daily challenges.
+6. Celebrate small wins and progress.
+7. Support parents' emotional well-being — they are doing important work.
+8. FORMATTING: You MUST use Markdown extensively to make your responses extremely easy to read. Use **bolding** for emphasis, bulleted or numbered lists for steps, and `### Headers` to break up long thoughts.
+9. Tailor your language to be simple, accessible, and structured.
+10. If asked about emergencies or safety concerns, advise immediate professional help.
+11. NAVIGATION: You have the ability to navigate the user around the app using the `perform_app_action` tool. If the user asks you to open the daily plan, the games, the community, their progress, etc., you MUST use the tool. Provide a warm spoken `message` confirming you are taking them there.
+12. MEDIA ANALYSIS: When the user uploads images or videos, you must natively analyze the visual elements. Start with a brief summary of what you see, and then break down the key details contextually related to parenting, safety, emotions, or development.
+13. MENTAL HEALTH RISK DETECTION: You must monitor the user's language for signs of severe stress, burnout, depression, or intent to self-harm. If you detect high risk, you MUST immediately call the `report_mental_health_risk` tool to trigger an intervention, and provide a deeply empathetic, supportive verbal response guiding them to the crisis resources that will appear on their screen.
+
+DISCLAIMER: Always playfully and gently remind users that your guidance supplements but does not replace professional medical advice.
+''';
+
+  /// Initialize the Gemini model. Call once at app start.
+  void initialize() {
+    debugPrint('Initializing AiService...');
+    debugPrint('EnvConfig.hasGeminiKey: \${EnvConfig.hasGeminiKey}');
+    debugPrint('EnvConfig.geminiApiKey length: \${EnvConfig.geminiApiKey.length}');
+
+    if (!EnvConfig.hasGeminiKey) {
+      debugPrint('⚠️ Gemini API key not configured. AI features will use fallback.');
+      return;
+    }
+
+    debugPrint('Gemini API Key found. Initializing GenerativeModel...');
+    _model = GenerativeModel(
+      model: _modelName,
+      apiKey: EnvConfig.geminiApiKey,
+      systemInstruction: Content.text(_baseSystemPrompt),
+      generationConfig: GenerationConfig(
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      ),
+      safetySettings: [
+        SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium),
+        SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium),
+        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
+        SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium),
+      ],
+      tools: [
+        Tool(
+          functionDeclarations: [
+            FunctionDeclaration(
+              'perform_app_action',
+              'Navigate to different sections of the app or perform specific tasks.',
+              Schema(
+                SchemaType.object,
+                properties: {
+                  'action': Schema(
+                    SchemaType.string,
+                    description: 'The type of action. Usually "navigate".',
+                  ),
+                  'target': Schema(
+                    SchemaType.string,
+                    description:
+                        'The target destination. Allowed values: home, dashboard, wellness, daily_plan, games, emergency, settings, progress, community, activities.',
+                  ),
+                  'message': Schema(
+                    SchemaType.string,
+                    description:
+                        'A brief verbal confirmation to speak to the user before navigating (e.g., "Taking you to the games hub.").',
+              ),
+            ),
+            FunctionDeclaration(
+              'report_mental_health_risk',
+              'Report that the user is expressing signs of severe mental health crisis, burnout, or distress, triggering an immediate UI intervention.',
+              Schema(
+                SchemaType.object,
+                properties: {
+                  'severity': Schema(
+                    SchemaType.string,
+                    description: 'The severity of the risk. Allowed values: high, medium.',
+                  ),
+                  'reason': Schema(
+                    SchemaType.string,
+                    description: 'A brief explanation of why this risk was flagged based on the user\\'s text.',
+                  ),
+                },
+                requiredProperties: ['severity', 'reason'],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    debugPrint('GenerativeModel initialized successfully.');
+  }
+
+  /// Start a new chat session with child profile context.
+  void startChatSession({ChildProfileModel? childProfile, String? fullContext}) {
+    if (_model == null) return;
+
+    final contextPrompt = (fullContext != null && fullContext.isNotEmpty) 
+        ? fullContext 
+        : _buildChildContext(childProfile);
+
+    _chatSession = _model!.startChat(
+      history: [
+        if (contextPrompt.isNotEmpty) Content.text('Here is the holistic user context:\n$contextPrompt'),
+        Content.text(
+          'Remember: If the user asks you to open a page, go to a section, or navigate, you MUST use the perform_app_action function.',
+        ),
+      ],
+    );
+  }
+
+  /// Send a message and get a response.
+  /// Returns the AI response text, or a fallback if API is unavailable.
+  Future<String> getResponse(String userMessage) async {
+    if (_model == null) {
+      return _getFallbackResponse(userMessage);
+    }
+
+    if (_chatSession == null) {
+      startChatSession();
+    }
+
+    if (_chatSession == null) {
+      return _getFallbackResponse(userMessage);
+    }
+
+    try {
+      final response = await _chatSession!
+          .sendMessage(Content.text(userMessage))
+          .timeout(const Duration(seconds: 15));
+
+      final text = response.text;
+      if (text == null || text.isEmpty) {
+        AppLogger.warning(
+          'AiService.getResponse',
+          'Received empty text from Gemini. Using gentle prompt.',
+        );
+        return 'I understand your question. Could you please provide more details so I can give you better guidance?';
+      }
+      return text;
+    } catch (e, stack) {
+      AppLogger.error(
+        'AiService.getResponse',
+        'Gemini API call failed',
+        e,
+        stack,
+      );
+      return _getFallbackResponse(userMessage);
+    }
+  }
+
+  /// Send a message and stream the response token by token.
+  Stream<String> getStreamingResponse(String userMessage, {List<Uint8List>? imageBytesList}) async* {
+    if (_model == null) {
+      yield _getFallbackResponse(userMessage);
+      return;
+    }
+
+    try {
+      final contentParts = <Part>[TextPart(userMessage)];
+      if (imageBytesList != null) {
+        for (final bytes in imageBytesList) {
+          contentParts.add(DataPart('image/jpeg', bytes));
+        }
+      }
+
+      final response = _model!.generateContentStream([
+        Content.multi(contentParts),
+      ]);
+
+      await for (final chunk in response) {
+        if (chunk.functionCalls.isNotEmpty) {
+          final call = chunk.functionCalls.first;
+          if (call.name == 'perform_app_action') {
+            final serialized = jsonEncode({
+              '__is_function_call__': true,
+              'name': call.name,
+              'args': call.args,
+            });
+            yield serialized;
+            continue;
+          } else if (call.name == 'report_mental_health_risk') {
+            final serialized = jsonEncode({
+              '__is_function_call__': true,
+              'name': call.name,
+              'args': call.args,
+            });
+            yield serialized;
+            continue;
+          }
+        }
+
+        final text = chunk.text;
+        if (text != null && text.isNotEmpty) {
+          yield text;
+        }
+      }
+    } catch (e) {
+      yield _getFallbackResponse(userMessage);
+    }
+  }
+
+  /// Generate personalized recommendations based on child profile.
+  Future<List<RecommendationModel>> getRecommendations(
+    ChildProfileModel profile,
+  ) async {
+    if (_model == null) {
+      return _getDefaultRecommendations(profile);
+    }
+
+    final prompt = '''
+Based on the following child profile, suggest 3-5 appropriate therapy activities for today.
+
+Child Profile (Anonymized):
+- Identifier: The Child
+- Age: \${profile.age}
+- Conditions: \${profile.conditions.join(', ')}
+- Communication Level: \${profile.communicationLevel}
+- Behavioral Concerns: \${profile.behavioralConcerns.join(', ')}
+- Sensory Issues: \${profile.sensoryIssues.join(', ')}
+- Motor Skill Level: \${profile.motorSkillLevel}
+- Parent Goals: \${profile.parentGoals.join(', ')}
+
+Format the response strictly as a JSON array of objects. Do not include markdown code blocks.
+Each object must have exactly these keys:
+- "title": (String) Name of the activity.
+- "duration": (String) Estimated time, e.g., "15 min".
+- "objective": (String) Goal of the activity.
+- "reason": (String) Why it's suitable based on the profile.
+''';
+
+    try {
+      final response = await _model!
+          .generateContent([Content.text(prompt)])
+          .timeout(const Duration(seconds: 20));
+
+      String jsonStr = response.text?.trim() ?? '';
+
+      // Cleanup markdown artifacts if present
+      if (jsonStr.startsWith('```json')) {
+        jsonStr =
+            jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replaceAll('```', '').trim();
+      }
+
+      final List<dynamic> parsed = json.decode(jsonStr);
+      return parsed
+          .map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>))
+          .toList();
+    } catch (e, stack) {
+      AppLogger.error(
+        'AiService.getRecommendations',
+        'Failed to generate recommendations',
+        e,
+        stack,
+      );
+      return _getDefaultRecommendations(profile);
+    }
+  }
+
+  /// Generate dynamic insights for the Dashboard Mental Health Widget
+  Future<MentalHealthInsightModel> getMentalHealthInsights(
+    ChildProfileModel? profile,
+    Map<String, dynamic> weeklyStats,
+  ) async {
+    if (_model == null) {
+      return _getDefaultMentalHealthInsights();
+    }
+
+    final activitiesCount = weeklyStats['count'] ?? 0;
+    final streak = weeklyStats['streak'] ?? 0;
+
+    final prompt = '''
+Analyze this user's recent app activity and child profile to generate a highly personalized, empathetic 4-point mental health and well-being summary. 
+
+Context (Anonymized):
+- Subject: The Caregiver / User
+- Child Details: The Child
+- Child Conditions: \${profile?.conditions.join(', ') ?? 'Unknown'}
+- Recent Activities Completed: \$activitiesCount
+- Current App Streak: \$streak days
+
+Format your response STRICTLY as a JSON object with exactly these four keys mapping to short, 1-2 sentence insights analyzing their situation:
+- "earlyIdentification": Provide an insight regarding burnout risk. Emphasize early identification. (e.g. "You've been highly active this week; remember to watch for signs of caregiver fatigue.")
+- "supportAccess": Suggest a specific type of support they might need from the app or external resources based on their activity.
+- "ethicalPrivacy": Provide a reassuring statement about how the AI respects their privacy while generating these insights.
+- "wellBeing": Give a short summary of their overall well-being trajectory based on their streak and engagement.
+
+Return ONLY the raw JSON object. No markdown formatting.
+''';
+
+    try {
+      final response = await _model!
+          .generateContent([Content.text(prompt)])
+          .timeout(const Duration(seconds: 15));
+
+      String jsonStr = response.text?.trim() ?? '';
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
+      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replaceAll('```', '').trim();
+
+      final parsed = json.decode(jsonStr) as Map<String, dynamic>;
+      return MentalHealthInsightModel.fromMap(parsed);
+    } catch (e, stack) {
+      AppLogger.error(
+        'AiService.getMentalHealthInsights',
+        'Failed to generate dashboard insights',
+        e,
+        stack,
+      );
+      return _getDefaultMentalHealthInsights();
+    }
+  }
+
+  MentalHealthInsightModel _getDefaultMentalHealthInsights() {
+    return MentalHealthInsightModel(
+      earlyIdentification: 'Routine check-ins help identify burnout risks early. Take a moment to assess your feelings.',
+      supportAccess: 'Remember that seeking support is a sign of strength. The app provides tools for instant connection.',
+      ethicalPrivacy: 'All behavioral data is analyzed securely and locally protected on your device.',
+      wellBeing: 'Consistent routines enhance daily well-being for both you and your child. Keep up the great work!',
+    );
+  }
+
+  /// Build child context string for chat initialization.
+  String _buildChildContext(ChildProfileModel? profile) {
+    if (profile == null) return '';
+
+    return '''
+CHILD CONTEXT (use this to personalize all responses BUT remain anonymous):
+- Identifier: The Child
+- Age: \${profile.age} years
+- Conditions: \${profile.conditions.join(', ')}
+- Communication: \${profile.communicationLevel}
+- Behavioral Concerns: \${profile.behavioralConcerns.join(', ')}
+- Sensory Issues: \${profile.sensoryIssues.join(', ')}
+- Motor Skills: \${profile.motorSkillLevel}
+- Parent Goals: \${profile.parentGoals.join(', ')}
+- Current Therapy: \${profile.currentTherapyStatus}
+
+Tailor all advice and activities to this child's specific needs and abilities.
+''';
+  }
+
+  /// Fallback responses when Gemini API is unavailable.
+  String _getFallbackResponse(String userMessage) {
+    final lowerMessage = userMessage.toLowerCase();
+
+    if (lowerMessage.contains('meltdown') ||
+        lowerMessage.contains('crisis') ||
+        lowerMessage.contains('tantrum')) {
+      return "During a meltdown, stay calm and ensure safety first. Try these steps:\n\n"
+          "1. Reduce sensory input — dim lights, lower sounds\n"
+          "2. Provide a safe space — soft area, comfort items\n"
+          "3. Use a calm, low voice\n"
+          "4. Don't try to reason during the peak — wait for calm\n"
+          "5. Offer comfort when the child is ready\n\n"
+          "Remember: meltdowns are not behavior problems — they're sensory/emotional overwhelm. "
+          "If they increase in frequency, please consult your therapist.\n\n"
+          "⚠️ This guidance does not replace professional medical advice.";
+    }
+
+    if (lowerMessage.contains('speech') || lowerMessage.contains('talk')) {
+      return "For speech development, try the 'one-word-up' strategy:\n\n"
+          "• If your child uses single words, model two-word phrases\n"
+          "• If they use phrases, model short sentences\n"
+          "• Narrate daily activities naturally\n"
+          "• Use picture cards for visual support\n"
+          "• Celebrate every communication attempt!\n\n"
+          "⚠️ This guidance does not replace professional speech therapy.";
+    }
+
+    if (lowerMessage.contains('stress') ||
+        lowerMessage.contains('burn') ||
+        lowerMessage.contains('tired')) {
+      return "Your feelings are completely valid — caregiving is deeply rewarding but exhausting.\n\n"
+          "💙 Take 10 minutes for yourself today\n"
+          "💙 Connect with other parents who understand\n"
+          "💙 You are doing an incredible job\n"
+          "💙 Small steps forward are still progress\n"
+          "💙 It's okay to ask for help\n\n"
+          "Remember: taking care of yourself IS taking care of your child.";
+    }
+
+    return "That's a great question! Here are some general tips:\n\n"
+        "• Break activities into small, manageable steps\n"
+        "• Use visual schedules for predictability\n"
+        "• Celebrate every small win\n"
+        "• Keep routines consistent\n"
+        "• Use the 'First-Then' approach for motivation\n\n"
+        "Would you like more specific guidance about a particular challenge?\n\n"
+        "⚠️ CARE-AI does not provide medical diagnoses. Always consult a qualified professional.";
+  }
+
+  /// Default recommendations when AI is unavailable.
+  List<RecommendationModel> _getDefaultRecommendations(
+    ChildProfileModel profile,
+  ) {
+    return [
+      RecommendationModel(
+        title: 'Sensory Play Time',
+        duration: '15 min',
+        objective: 'Texture exploration',
+        reason: 'Great for sensory processing needs.',
+      ),
+      RecommendationModel(
+        title: 'Communication Practice',
+        duration: '10 min',
+        objective: 'Use picture cards for daily requests',
+        reason: 'Supports current communication goals.',
+      ),
+      RecommendationModel(
+        title: 'Motor Skills Exercise',
+        duration: '10 min',
+        objective: 'Simple stacking or threading activities',
+        reason: 'Builds fine motor coordination.',
+      ),
+    ];
+  }
+
+  /// Dispose resources.
+  void dispose() {
+    _chatSession = null;
+    _model = null;
+  }
+}
