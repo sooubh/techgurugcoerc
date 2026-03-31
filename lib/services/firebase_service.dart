@@ -481,20 +481,27 @@ class FirebaseService {
   }
 
   /// Get recent activity logs.
-  Future<List<ActivityLogModel>> getActivityLogs({int limit = 20}) async {
+  Future<List<ActivityLogModel>> getActivityLogs({
+    int limit = 20,
+    bool isAdult = false,
+  }) async {
     final uid = currentUser?.uid;
     if (uid == null) return [];
 
+    // Avoid composite index requirement by filtering in memory
     final snapshot =
         await _firestore
             .collection('users')
             .doc(uid)
             .collection('activity_logs')
             .orderBy('completedAt', descending: true)
-            .limit(limit)
             .get();
 
-    return snapshot.docs
+    final filteredDocs = snapshot.docs
+        .where((doc) => (doc.data()['isAdult'] ?? false) == isAdult)
+        .take(limit);
+
+    return filteredDocs
         .map((doc) => ActivityLogModel.fromMap(doc.data(), doc.id))
         .toList();
   }
@@ -632,7 +639,6 @@ class FirebaseService {
         .collection('game_sessions')
         .add(session.toMap());
 
-    // Also cast it as an activity log so it contributes to the weekly streak & charts
     final activityLog = ActivityLogModel(
       activityId: 'game_${session.gameType}',
       activityTitle: 'Game: ${session.gameType}',
@@ -640,6 +646,7 @@ class FirebaseService {
       durationSeconds: session.durationSeconds,
       stepsCompleted: session.score,
       completedAt: session.completedAt,
+      isAdult: session.isAdult,
     );
     await logActivity(activityLog);
   }
@@ -674,12 +681,13 @@ class FirebaseService {
 
     // Log as activity too for streak/chart compatibility
     final activityLog = ActivityLogModel(
-      activityId: session.moduleId,
+      activityId: 'therapy_${session.moduleId}',
       activityTitle: session.moduleTitle,
       category: session.skillCategory,
       durationSeconds: session.timeSpentSeconds,
       stepsCompleted: session.stepsCompleted,
       completedAt: session.completedAt,
+      isAdult: session.isAdult,
     );
     await logActivity(activityLog); // This already invalidates _cachedWeeklyStats
   }

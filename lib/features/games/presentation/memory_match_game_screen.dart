@@ -6,7 +6,8 @@ import '../../../models/game_session_model.dart';
 import '../../../services/firebase_service.dart';
 
 class MemoryMatchGameScreen extends StatefulWidget {
-  const MemoryMatchGameScreen({super.key});
+  final bool isAdult;
+  const MemoryMatchGameScreen({super.key, this.isAdult = false});
 
   @override
   State<MemoryMatchGameScreen> createState() => _MemoryMatchGameScreenState();
@@ -91,6 +92,7 @@ class _MemoryMatchGameScreenState extends State<MemoryMatchGameScreen> {
       durationSeconds: _secondsElapsed,
       completedAt: DateTime.now(),
       additionalMetrics: {'level': _level},
+      isAdult: widget.isAdult,
     );
     await _firebaseService.logGameSession(session);
   }

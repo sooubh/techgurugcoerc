@@ -19,6 +19,7 @@ class TherapySessionModel {
   final List<String> nextRecommendedModuleIds;
   final Map<String, dynamic>? performanceMetrics;
   final DateTime completedAt;
+  final bool isAdult;
 
   const TherapySessionModel({
     this.id,
@@ -37,6 +38,7 @@ class TherapySessionModel {
     this.nextRecommendedModuleIds = const [],
     this.performanceMetrics,
     required this.completedAt,
+    this.isAdult = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -56,6 +58,7 @@ class TherapySessionModel {
       'nextRecommendedModuleIds': nextRecommendedModuleIds,
       'performanceMetrics': performanceMetrics,
       'completedAt': Timestamp.fromDate(completedAt),
+      'isAdult': isAdult,
     };
   }
 
@@ -80,6 +83,7 @@ class TherapySessionModel {
       performanceMetrics: map['performanceMetrics'] as Map<String, dynamic>?,
       completedAt:
           (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isAdult: map['isAdult'] ?? false,
     );
   }
 

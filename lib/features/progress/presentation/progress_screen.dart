@@ -19,6 +19,7 @@ class ProgressScreen extends StatefulWidget {
 class _ProgressScreenState extends State<ProgressScreen> {
   final _firebaseService = FirebaseService();
   bool _isLoading = true;
+  bool _isAdultView = false;
 
   // Real data from Firestore
   Map<String, dynamic> _weeklyStats = {'count': 0, 'minutes': 0, 'streak': 0};
@@ -42,9 +43,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
         return;
       }
       
-      final dashboard = await repository.getDashboardData(uid);
-      final logs = await _firebaseService.getActivityLogs(limit: 5);
-      final milestones = await _firebaseService.getMilestones();
+      final dashboard = await repository.getDashboardData(uid, isAdult: _isAdultView);
+      final logs = await _firebaseService.getActivityLogs(limit: 5, isAdult: _isAdultView);
+      final milestones = _isAdultView ? <Map<String, dynamic>>[] : await _firebaseService.getMilestones();
 
       if (mounted) {
         setState(() {
@@ -96,6 +97,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ─── Toggle Switch ─────────────────────────
+                      _buildToggleSwitch(context, isDark),
+                      const SizedBox(height: 20),
+
                       // ─── Weekly Summary Card ───────────────────
                       _buildWeeklySummary(context, isDark),
                       const SizedBox(height: 20),
@@ -113,10 +118,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       const SizedBox(height: 24),
 
                       // ─── Milestones ────────────────────────────
-                      _sectionTitle(context, 'Milestones Achieved'),
-                      const SizedBox(height: 12),
-                      _buildMilestones(context, isDark),
-                      const SizedBox(height: 24),
+                      if (!_isAdultView) ...[
+                        _sectionTitle(context, 'Milestones Achieved'),
+                        const SizedBox(height: 12),
+                        _buildMilestones(context, isDark),
+                        const SizedBox(height: 24),
+                      ],
 
                       // ─── Weekly Trend ──────────────────────────
                       _sectionTitle(context, 'Weekly Activity Trend'),
@@ -136,6 +143,93 @@ class _ProgressScreenState extends State<ProgressScreen> {
         context,
       ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     ).animate().fadeIn(duration: 300.ms);
+  }
+
+  Widget _buildToggleSwitch(BuildContext context, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (_isAdultView) {
+                  setState(() {
+                    _isAdultView = false;
+                    _isLoading = true;
+                  });
+                  _loadData();
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: !_isAdultView 
+                      ? (isDark ? AppColors.darkCardBackground : AppColors.cardBackground)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: !_isAdultView 
+                      ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))]
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Child Progress',
+                  style: TextStyle(
+                    fontWeight: !_isAdultView ? FontWeight.bold : FontWeight.normal,
+                    color: !_isAdultView 
+                        ? (isDark ? Colors.white : AppColors.textPrimary)
+                        : (isDark ? Colors.white54 : AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (!_isAdultView) {
+                  setState(() {
+                    _isAdultView = true;
+                    _isLoading = true;
+                  });
+                  _loadData();
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _isAdultView 
+                      ? (isDark ? AppColors.darkCardBackground : AppColors.cardBackground)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: _isAdultView 
+                      ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))]
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Adult Progress',
+                  style: TextStyle(
+                    fontWeight: _isAdultView ? FontWeight.bold : FontWeight.normal,
+                    color: _isAdultView 
+                        ? (isDark ? Colors.white : AppColors.textPrimary)
+                        : (isDark ? Colors.white54 : AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _generateReport() {

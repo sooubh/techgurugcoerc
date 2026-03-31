@@ -11,6 +11,7 @@ import '../../../services/sentiment_risk_analyzer.dart';
 import '../../../services/future_risk_predictor.dart';
 import '../../../services/firebase_service.dart';
 import '../../../models/risk_forecast_model.dart';
+import '../../../models/activity_log_model.dart';
 import 'crisis_support_screen.dart';
 
 /// Adult Mental Health Screen — mood tracker, AI feelings chat,
@@ -202,6 +203,21 @@ DISCLAIMER: Always gently remind the user that your support supplements but does
     await prefs.setInt(_moodKey, index);
     await prefs.setString(_moodDateKey, today);
     setState(() => _selectedMood = index);
+
+    try {
+      final firebaseService = FirebaseService();
+      await firebaseService.logActivity(
+        ActivityLogModel(
+          activityId: 'mood_checkin_$today',
+          activityTitle: 'Mood: ${_moods[index]['label']}',
+          category: 'Wellness',
+          durationSeconds: 30,
+          stepsCompleted: 1,
+          completedAt: DateTime.now(),
+          isAdult: true,
+        ),
+      );
+    } catch (_) {}
   }
 
   void _startBreathingExercise() {
@@ -230,6 +246,22 @@ DISCLAIMER: Always gently remind the user that your support supplements but does
         _breathLabel = 'Done! 🎉';
         _breathCycle = 0;
       });
+      
+      try {
+        final firebaseService = FirebaseService();
+        firebaseService.logActivity(
+          ActivityLogModel(
+            activityId: 'breathing_exercise_${DateTime.now().millisecondsSinceEpoch}',
+            activityTitle: 'Breathing Exercise',
+            category: 'Mindfulness',
+            durationSeconds: 60,
+            stepsCompleted: 5,
+            completedAt: DateTime.now(),
+            isAdult: true,
+          ),
+        );
+      } catch (_) {}
+
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) setState(() => _breathLabel = 'Start');
       });

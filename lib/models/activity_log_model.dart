@@ -9,6 +9,7 @@ class ActivityLogModel {
   final int durationSeconds;
   final int stepsCompleted;
   final DateTime completedAt;
+  final bool isAdult;
 
   const ActivityLogModel({
     this.id,
@@ -18,6 +19,7 @@ class ActivityLogModel {
     required this.durationSeconds,
     required this.stepsCompleted,
     required this.completedAt,
+    this.isAdult = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -28,6 +30,7 @@ class ActivityLogModel {
       'durationSeconds': durationSeconds,
       'stepsCompleted': stepsCompleted,
       'completedAt': Timestamp.fromDate(completedAt),
+      'isAdult': isAdult,
     };
   }
 
@@ -41,6 +44,7 @@ class ActivityLogModel {
       stepsCompleted: map['stepsCompleted'] ?? 0,
       completedAt:
           (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isAdult: map['isAdult'] ?? false,
     );
   }
 }

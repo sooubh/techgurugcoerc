@@ -12,6 +12,7 @@ class GameSessionModel {
   final int durationSeconds;
   final DateTime completedAt;
   final Map<String, dynamic>? additionalMetrics;
+  final bool isAdult;
 
   const GameSessionModel({
     this.id,
@@ -24,6 +25,7 @@ class GameSessionModel {
     required this.durationSeconds,
     required this.completedAt,
     this.additionalMetrics,
+    this.isAdult = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -37,6 +39,7 @@ class GameSessionModel {
       'durationSeconds': durationSeconds,
       'completedAt': Timestamp.fromDate(completedAt),
       'additionalMetrics': additionalMetrics,
+      'isAdult': isAdult,
     };
   }
 
@@ -53,6 +56,7 @@ class GameSessionModel {
       completedAt:
           (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       additionalMetrics: map['additionalMetrics'] as Map<String, dynamic>?,
+      isAdult: map['isAdult'] ?? false,
     );
   }
 }

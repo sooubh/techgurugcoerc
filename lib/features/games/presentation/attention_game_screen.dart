@@ -6,7 +6,8 @@ import '../../../models/game_session_model.dart';
 import '../../../services/firebase_service.dart';
 
 class AttentionGameScreen extends StatefulWidget {
-  const AttentionGameScreen({super.key});
+  final bool isAdult;
+  const AttentionGameScreen({super.key, this.isAdult = false});
 
   @override
   State<AttentionGameScreen> createState() => _AttentionGameScreenState();
@@ -88,6 +89,7 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
           _score, // We aren't tracking wrong taps specifically here, could be added
       durationSeconds: _secondsElapsed,
       completedAt: DateTime.now(),
+      isAdult: widget.isAdult,
     );
     await _firebaseService.logGameSession(session);
   }

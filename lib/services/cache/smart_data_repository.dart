@@ -79,8 +79,8 @@ class SmartDataRepository {
   // into ONE Firebase query instead of three
   // ═══════════════════════════════════════
 
-  Future<Map<String, dynamic>> getDashboardData(String uid) async {
-    const key = 'dashboard_data';
+  Future<Map<String, dynamic>> getDashboardData(String uid, {bool isAdult = false}) async {
+    final key = 'dashboard_data_$isAdult';
 
     if (_cache.isFresh(key)) {
       final cached = _cache.get<Map<String, dynamic>>(
@@ -95,16 +95,15 @@ class SmartDataRepository {
       // ONE combined Firebase query instead of 3 separate ones
       final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
       // Using an internal firestore reference since we need to do a custom query
-      // _firebaseService exposes `_firestore` as private? No, it has to be exposed if we follow chache.md
-      // Let's use the actual firebase query if exposed, otherwise we need to rely on the service
-      // Let's assume FirebaseFirestore.instance can be used or we add a getter in FirebaseService
       final snapshot = await FirebaseFirestore.instance
         .collection('users').doc(uid)
         .collection('activity_logs')
         .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
         .get();
 
-      final logs = snapshot.docs.map((d) => d.data()).toList();
+      // Filter in memory to avoid composite index requirement
+      final allLogs = snapshot.docs.map((d) => d.data()).toList();
+      final logs = allLogs.where((l) => (l['isAdult'] ?? false) == isAdult).toList();
 
       final dashboardData = {
         'weeklyStats': _computeWeeklyStats(logs),
@@ -290,7 +289,8 @@ class SmartDataRepository {
   Future<void> forceRefresh(String uid, {String? childId}) async {
     await _cache.invalidate('user_profile');
     await _cache.invalidate('child_profiles');
-    await _cache.invalidate('dashboard_data');
+    await _cache.invalidate('dashboard_data_false');
+    await _cache.invalidate('dashboard_data_true');
     await _cache.invalidate('mood_history_14');
     final today = DateTime.now().toIso8601String().substring(0, 10);
     await _cache.invalidate('daily_plan_$today');
