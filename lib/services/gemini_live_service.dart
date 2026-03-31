@@ -7,6 +7,8 @@ import '../core/utils/app_logger.dart';
 
 class GeminiLiveService {
   WebSocketChannel? _channel;
+  Completer<void>? _setupCompleter;
+  bool _setupComplete = false;
 
   final _audioStreamController = StreamController<Uint8List>.broadcast();
   final _messageController = StreamController<Map<String, dynamic>>.broadcast();
@@ -14,7 +16,7 @@ class GeminiLiveService {
   Stream<Uint8List> get audioStream => _audioStreamController.stream;
   Stream<Map<String, dynamic>> get messagesStream => _messageController.stream;
 
-  bool get isConnected => _channel != null;
+  bool get isConnected => _channel != null && _setupComplete;
 
   Future<void> connect(String systemInstruction) async {
     if (_channel != null) return;
@@ -22,7 +24,7 @@ class GeminiLiveService {
     final apiKey = EnvConfig.geminiApiKey;
     if (apiKey.isEmpty) {
       AppLogger.error('GeminiLiveService', 'Gemini API key is missing');
-      return;
+      throw Exception('GEMINI_API_KEY is missing.');
     }
 
     final wsUrl = Uri.parse(
@@ -32,6 +34,8 @@ class GeminiLiveService {
     try {
       AppLogger.info('GeminiLiveService', 'Connecting to WebSocket...');
       _channel = WebSocketChannel.connect(wsUrl);
+      _setupComplete = false;
+      _setupCompleter = Completer<void>();
 
       await _channel!.ready;
       AppLogger.info(
@@ -55,32 +59,30 @@ class GeminiLiveService {
       );
 
       final setupMessage = {
-        "setup": {
-          "model": "models/gemini-2.5-flash-native-audio-preview-12-2025",
-          "generation_config": {
-            "response_modalities": ["AUDIO"],
-          },
+        "config": {
+          "model": "models/gemini-3.1-flash-live-preview",
+          "responseModalities": ["AUDIO"],
           // Server-side VAD: require clearer speech before triggering,
           // and wait longer in silence before ending a turn.
           // This prevents background noise, fans, AC, and TV from being
           // treated as valid user speech.
-          "realtime_input_config": {
-            "automatic_activity_detection": {
+          "realtimeInputConfig": {
+            "automaticActivityDetection": {
               "disabled": false,
-              "start_of_speech_sensitivity": "START_SENSITIVITY_LOW",
-              "end_of_speech_sensitivity": "END_SENSITIVITY_LOW",
-              "prefix_padding_ms": 100,
-              "silence_duration_ms": 800,
+              "startOfSpeechSensitivity": "START_SENSITIVITY_LOW",
+              "endOfSpeechSensitivity": "END_SENSITIVITY_LOW",
+              "prefixPaddingMs": 100,
+              "silenceDurationMs": 800,
             },
           },
-          "system_instruction": {
+          "systemInstruction": {
             "parts": [
               {"text": systemInstruction},
             ],
           },
           "tools": [
             {
-              "function_declarations": [
+              "functionDeclarations": [
                 {
                   "name": "perform_app_action",
                   "description": "Trigger an app navigation or module launch.",
@@ -108,7 +110,12 @@ class GeminiLiveService {
       _channel!.sink.add(jsonEncode(setupMessage));
       AppLogger.info(
         'GeminiLiveService',
-        'Setup message sent — waiting for setupComplete',
+        'Config message sent — waiting for server acknowledgement',
+      );
+
+      await _setupCompleter!.future.timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => throw TimeoutException('setupComplete timed out.'),
       );
     } catch (e, stack) {
       AppLogger.error(
@@ -118,6 +125,7 @@ class GeminiLiveService {
         stack,
       );
       disconnect();
+      rethrow;
     }
   }
 
@@ -151,11 +159,42 @@ class GeminiLiveService {
       _messageController.add(data);
 
       if (data.containsKey('setupComplete')) {
+        _setupComplete = true;
+        if (_setupCompleter != null && !_setupCompleter!.isCompleted) {
+          _setupCompleter!.complete();
+        }
         AppLogger.info(
           'GeminiLiveService',
           'setupComplete received — mic will start now',
         );
         return;
+      }
+
+      if (data.containsKey('error')) {
+        final errorObj = data['error'];
+        final message =
+            (errorObj is Map<String, dynamic>
+                ? (errorObj['message']?.toString() ?? 'Unknown Live API error')
+                : 'Unknown Live API error');
+        AppLogger.error('GeminiLiveService', 'Live API error: $message');
+        if (_setupCompleter != null && !_setupCompleter!.isCompleted) {
+          _setupCompleter!.completeError(Exception(message));
+        }
+        return;
+      }
+
+      // Some Live API versions may not emit setupComplete.
+      // Treat the first valid server message as a successful setup.
+      final hasServerAck =
+          data.containsKey('serverContent') ||
+          data.containsKey('toolCall') ||
+          data.containsKey('usageMetadata');
+      if (hasServerAck && !_setupComplete) {
+        _setupComplete = true;
+        if (_setupCompleter != null && !_setupCompleter!.isCompleted) {
+          _setupCompleter!.complete();
+        }
+        AppLogger.info('GeminiLiveService', 'Server acknowledgement received');
       }
 
       if (data.containsKey('serverContent')) {
@@ -205,10 +244,8 @@ class GeminiLiveService {
     if (_channel == null) return;
     final base64Data = base64Encode(chunk);
     final message = {
-      "realtime_input": {
-        "media_chunks": [
-          {"mime_type": "audio/pcm;rate=16000", "data": base64Data},
-        ],
+      "realtimeInput": {
+        "audio": {"mimeType": "audio/pcm;rate=16000", "data": base64Data},
       },
     };
     try {
@@ -226,16 +263,8 @@ class GeminiLiveService {
   void sendClientContent(String text) {
     if (_channel == null) return;
     final message = {
-      "clientContent": {
-        "turns": [
-          {
-            "role": "user",
-            "parts": [
-              {"text": text},
-            ],
-          },
-        ],
-        "turnComplete": true,
+      "realtimeInput": {
+        "text": text,
       },
     };
     try {
@@ -253,6 +282,8 @@ class GeminiLiveService {
   void disconnect() {
     _channel?.sink.close();
     _channel = null;
+    _setupComplete = false;
+    _setupCompleter = null;
   }
 
   void dispose() {

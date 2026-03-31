@@ -92,18 +92,24 @@ class SmartDataRepository {
     }
 
     try {
-      // ONE combined Firebase query instead of 3 separate ones
+      // Read recent logs and compute in memory.
+      // This is more robust for mixed/legacy completedAt formats.
       final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-      // Using an internal firestore reference since we need to do a custom query
       final snapshot = await FirebaseFirestore.instance
         .collection('users').doc(uid)
         .collection('activity_logs')
-        .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
+        .orderBy('completedAt', descending: true)
+        .limit(400)
         .get();
 
-      // Filter in memory to avoid composite index requirement
       final allLogs = snapshot.docs.map((d) => d.data()).toList();
-      final logs = allLogs.where((l) => (l['isAdult'] ?? false) == isAdult).toList();
+      final logs =
+          allLogs.where((l) {
+            final logIsAdult = (l['isAdult'] ?? false) == true;
+            if (logIsAdult != isAdult) return false;
+            final completedAt = _extractCompletedAt(l);
+            return completedAt != null && !completedAt.isBefore(sevenDaysAgo);
+          }).toList();
 
       final dashboardData = {
         'weeklyStats': _computeWeeklyStats(logs),
@@ -314,12 +320,11 @@ class SmartDataRepository {
     final dailyCounts = <String, int>{};
     final activeDays = <String>{};
     for (final log in logs) {
-      if (log['completedAt'] != null && log['completedAt'] is Timestamp) {
-        final d = (log['completedAt'] as Timestamp).toDate();
-        final date = d.toIso8601String().substring(0, 10);
-        dailyCounts[date] = (dailyCounts[date] ?? 0) + 1;
-        activeDays.add('${d.year}-${d.month}-${d.day}');
-      }
+      final d = _extractCompletedAt(log);
+      if (d == null) continue;
+      final date = d.toIso8601String().substring(0, 10);
+      dailyCounts[date] = (dailyCounts[date] ?? 0) + 1;
+      activeDays.add('${d.year}-${d.month}-${d.day}');
     }
 
     // Calculate streak (consecutive days with activity)
@@ -358,14 +363,34 @@ class SmartDataRepository {
     final counts = List.filled(7, 0);
     
     for (final log in logs) {
-      if (log['completedAt'] != null && log['completedAt'] is Timestamp) {
-        final ts = (log['completedAt'] as Timestamp).toDate();
-        final daysAgo = now.difference(ts).inDays;
-        if (daysAgo >= 0 && daysAgo < 7) {
-          counts[6 - daysAgo] += 1;
-        }
+      final ts = _extractCompletedAt(log);
+      if (ts == null) continue;
+      final daysAgo = now.difference(ts).inDays;
+      if (daysAgo >= 0 && daysAgo < 7) {
+        counts[6 - daysAgo] += 1;
       }
     }
     return counts;
+  }
+
+  DateTime? _extractCompletedAt(Map<String, dynamic> log) {
+    final raw = log['completedAt'];
+    if (raw is Timestamp) return raw.toDate();
+    if (raw is DateTime) return raw;
+    if (raw is String) {
+      try {
+        return DateTime.parse(raw);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (raw is int) {
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(raw);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 }

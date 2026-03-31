@@ -22,9 +22,11 @@ import '../../../models/guidance_note_model.dart';
 import '../../../services/ai_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/permission_service.dart';
+import '../../../services/mental_health_service.dart';
 import '../../../models/therapy_module_model.dart';
 import '../../wellness/presentation/crisis_support_screen.dart';
 import '../../../models/mental_health_insight_model.dart';
+import '../../../models/risk_alert_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Premium Smart Dashboard — central hub of the CARE-AI user app.
@@ -1816,7 +1818,9 @@ class _MentalHealthDashboardWidget extends StatefulWidget {
 
 class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidget> {
   MentalHealthInsightModel? _insight;
+  EarlyIdentificationStatus? _earlyStatus;
   bool _isLoading = true;
+  bool _isLoadingEarlyStatus = true;
   bool _hasConsented = false;
   static const String _consentKey = 'has_consented_ai_health';
 
@@ -1831,6 +1835,8 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
     super.didUpdateWidget(oldWidget);
     if (oldWidget.childProfile?.id != widget.childProfile?.id && _hasConsented) {
       _checkConsentAndFetch();
+    } else if (oldWidget.weeklyStats != widget.weeklyStats) {
+      _fetchEarlyStatus();
     }
   }
 
@@ -1852,6 +1858,32 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
         setState(() => _isLoading = false);
         _generateLocalFallback();
       }
+    }
+  }
+
+  Future<void> _fetchEarlyStatus() async {
+    setState(() => _isLoadingEarlyStatus = true);
+    try {
+      final status = await MentalHealthService(FirebaseService())
+          .getEarlyIdentificationStatus();
+      if (!mounted) return;
+      setState(() {
+        _earlyStatus = status;
+        _isLoadingEarlyStatus = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _earlyStatus = const EarlyIdentificationStatus(
+          label: 'Unavailable',
+          summary: 'Unable to compute early-identification status right now.',
+          severity: AlertSeverity.low,
+          confidenceScore: 10,
+          recentAssessments: 0,
+          unresolvedAlerts: 0,
+        );
+        _isLoadingEarlyStatus = false;
+      });
     }
   }
 
@@ -1921,6 +1953,13 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
             ],
           ),
           const SizedBox(height: 16),
+
+          if (_isLoadingEarlyStatus)
+            _buildEarlyStatusSkeleton(isDark)
+          else if (_earlyStatus != null)
+            _buildEarlyStatusCard(_earlyStatus!, isDark),
+
+          const SizedBox(height: 14),
           
           if (!_hasConsented) _buildConsentOverlay(isDark) else if (_isLoading || _insight == null)
             _buildShimmerList(isDark)
@@ -1994,6 +2033,8 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
           Expanded(
             child: Text(
               text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 13,
                 color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
@@ -2035,6 +2076,90 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
     );
   }
 
+  Widget _buildEarlyStatusSkeleton(bool isDark) {
+    return Shimmer.fromColors(
+      baseColor: isDark ? Colors.white12 : Colors.grey.shade300,
+      highlightColor: isDark ? Colors.white24 : Colors.grey.shade100,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(height: 12, width: 120, color: Colors.white),
+            const SizedBox(height: 8),
+            Container(height: 12, width: double.infinity, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEarlyStatusCard(EarlyIdentificationStatus status, bool isDark) {
+    Color tone;
+    switch (status.severity) {
+      case AlertSeverity.high:
+        tone = AppColors.error;
+        break;
+      case AlertSeverity.medium:
+        tone = AppColors.warning;
+        break;
+      case AlertSeverity.low:
+        tone = AppColors.success;
+        break;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: isDark ? 0.16 : 0.09),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tone.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.health_and_safety_rounded, size: 16, color: tone),
+              const SizedBox(width: 6),
+              Text(
+                'Early Forecast: ${status.label}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: tone,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            status.summary,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.35,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Confidence: ${status.confidenceScore}% • Check-ins: ${status.recentAssessments} • Open alerts: ${status.unresolvedAlerts}',
+            style: TextStyle(
+              fontSize: 11,
+              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _checkConsentAndFetch() async {
     final prefs = await SharedPreferences.getInstance();
     final consented = prefs.getBool(_consentKey) ?? false;
@@ -2051,6 +2176,8 @@ class _MentalHealthDashboardWidgetState extends State<_MentalHealthDashboardWidg
       if (mounted) setState(() => _isLoading = false);
       _generateLocalFallback();
     }
+
+    _fetchEarlyStatus();
   }
 
   Future<void> _grantConsent() async {

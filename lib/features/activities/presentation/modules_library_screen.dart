@@ -6,7 +6,7 @@ import '../../../models/therapy_module_model.dart';
 import '../../../services/firebase_service.dart';
 import 'therapy_activity_screen.dart';
 
-/// Therapy Modules Library — browse, filter, and search activities.
+/// Activity library — browse, filter, and search.
 class ModulesLibraryScreen extends StatefulWidget {
   const ModulesLibraryScreen({super.key});
 
@@ -101,7 +101,7 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Activities & Therapy'),
+        title: const Text('Calm Mind Activities'),
         actions: [
           IconButton(
             onPressed: () {
@@ -125,7 +125,7 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
               controller: _searchController,
               onChanged: (v) => setState(() => _searchQuery = v),
               decoration: InputDecoration(
-                hintText: 'Search activities...',
+                hintText: 'Search activities',
                 prefixIcon: const Icon(Icons.search_rounded, size: 22),
                 suffixIcon:
                     _searchQuery.isNotEmpty

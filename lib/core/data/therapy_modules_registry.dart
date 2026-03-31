@@ -1,13 +1,238 @@
 import '../../../models/therapy_module_model.dart';
 
-/// Static registry of all 30 therapy modules.
-/// Each module is a fully structured TherapyModuleModel with instructions,
-/// difficulty, target skills, and category metadata.
+/// Static registry for activity modules used in the app.
+/// Activities are focused on calm mind and stress-reducing routines.
 class TherapyModulesRegistry {
   TherapyModulesRegistry._();
 
   static final List<TherapyModuleModel> allModules =
-      _baseModules.map(_withReferenceMedia).toList();
+      _calmMindModules
+          .map(_withReferenceMedia)
+          .map(_simplifyModuleLanguage)
+          .toList();
+
+  static final List<TherapyModuleModel> _calmMindModules = [
+    TherapyModuleModel(
+      id: 'calm_01',
+      title: 'Balloon Breathing',
+      objective: 'Slow breathing to calm the body and mind.',
+      conditionTypes: ['Anxiety', 'ADHD', 'ASD', 'Stress'],
+      ageRange: '4-16',
+      skillCategory: 'Breathing',
+      difficultyLevel: 1,
+      materials: ['Quiet space', 'One small pillow (optional)'],
+      instructions: [
+        'Sit down and put both hands on the belly.',
+        'Breathe in slowly through the nose for 4 counts.',
+        'Feel the belly rise like a balloon.',
+        'Breathe out slowly through the mouth for 4 counts.',
+        'Repeat for 8 rounds and notice your body relax.',
+      ],
+      durationMinutes: 6,
+      expectedOutcomes: 'Child can use slow breathing when stress starts.',
+      targetSkills: ['calm_breathing', 'self_regulation', 'body_awareness'],
+      activityType: 'guided',
+      iconName: 'air',
+    ),
+    TherapyModuleModel(
+      id: 'calm_02',
+      title: '5-4-3-2-1 Grounding',
+      objective: 'Use the five senses to feel safe and present.',
+      conditionTypes: ['Anxiety', 'Social Anxiety', 'Stress'],
+      ageRange: '6-18',
+      skillCategory: 'Mindfulness',
+      difficultyLevel: 2,
+      materials: ['Quiet corner'],
+      instructions: [
+        'Name 5 things you can see.',
+        'Name 4 things you can touch.',
+        'Name 3 things you can hear.',
+        'Name 2 things you can smell.',
+        'Name 1 thing you can taste and take one calm breath.',
+      ],
+      durationMinutes: 7,
+      expectedOutcomes: 'Child can lower panic feelings using senses.',
+      targetSkills: ['grounding', 'focus', 'emotional_control'],
+      activityType: 'guided',
+      iconName: 'visibility',
+    ),
+    TherapyModuleModel(
+      id: 'calm_03',
+      title: 'Muscle Relax Reset',
+      objective: 'Release body tension by tighten and relax steps.',
+      conditionTypes: ['Stress', 'Anxiety', 'ADHD'],
+      ageRange: '7-18',
+      skillCategory: 'Body Relaxation',
+      difficultyLevel: 2,
+      materials: ['Chair or mat'],
+      instructions: [
+        'Clench fists for 5 seconds, then relax.',
+        'Lift shoulders up for 5 seconds, then relax.',
+        'Press toes down for 5 seconds, then relax.',
+        'Squeeze face gently for 5 seconds, then relax.',
+        'Take 3 slow breaths and notice loose muscles.',
+      ],
+      durationMinutes: 8,
+      expectedOutcomes: 'Child can notice and reduce body tension.',
+      targetSkills: ['tension_release', 'body_awareness', 'calm_state'],
+      activityType: 'guided',
+      iconName: 'self_improvement',
+    ),
+    TherapyModuleModel(
+      id: 'calm_04',
+      title: 'Safe Place Imagery',
+      objective: 'Build a calm mental picture for hard moments.',
+      conditionTypes: ['Anxiety', 'Trauma Stress', 'Stress'],
+      ageRange: '8-18',
+      skillCategory: 'Mindfulness',
+      difficultyLevel: 3,
+      materials: ['Quiet spot', 'Soft background sound (optional)'],
+      instructions: [
+        'Close eyes and imagine a place that feels safe.',
+        'Think about what you can see in that place.',
+        'Think about what you can hear and smell there.',
+        'Place a hand on the chest and breathe slowly.',
+        'Open eyes and keep one calm detail from that place.',
+      ],
+      durationMinutes: 10,
+      expectedOutcomes: 'Child can use safe-place thinking to calm down.',
+      targetSkills: ['guided_imagery', 'emotional_safety', 'calm_focus'],
+      activityType: 'guided',
+      iconName: 'landscape',
+    ),
+    TherapyModuleModel(
+      id: 'calm_05',
+      title: 'Worry Box Write and Release',
+      objective: 'Move worries out of the head and into a box.',
+      conditionTypes: ['Anxiety', 'Overthinking', 'Stress'],
+      ageRange: '9-18',
+      skillCategory: 'Emotional Balance',
+      difficultyLevel: 2,
+      materials: ['Paper slips', 'Pen', 'Small box or jar'],
+      instructions: [
+        'Write one worry on a paper slip.',
+        'Fold it and place it in the worry box.',
+        'Take one slow breath for each worry slip.',
+        'Choose one worry you can solve today.',
+        'Leave the rest in the box for later review.',
+      ],
+      durationMinutes: 10,
+      expectedOutcomes: 'Child can separate solvable worries from heavy worry loops.',
+      targetSkills: ['worry_management', 'problem_sorting', 'self_regulation'],
+      activityType: 'interactive',
+      iconName: 'inbox',
+    ),
+    TherapyModuleModel(
+      id: 'calm_06',
+      title: 'Calm Coloring Break',
+      objective: 'Reduce stress with slow coloring and quiet focus.',
+      conditionTypes: ['Stress', 'ADHD', 'Sensory Processing Disorder'],
+      ageRange: '4-16',
+      skillCategory: 'Creative Calm',
+      difficultyLevel: 1,
+      materials: ['Color sheet', 'Crayons or pencils'],
+      instructions: [
+        'Choose one simple pattern or picture.',
+        'Color slowly from left to right.',
+        'Breathe in for one stroke and out for one stroke.',
+        'Pause if rushed and restart with slower movement.',
+        'Share how your body feels after finishing.',
+      ],
+      durationMinutes: 12,
+      expectedOutcomes: 'Child feels calmer after focused creative work.',
+      targetSkills: ['focus', 'self_soothing', 'calm_attention'],
+      activityType: 'interactive',
+      iconName: 'palette',
+    ),
+    TherapyModuleModel(
+      id: 'calm_07',
+      title: 'Gratitude Three Good Things',
+      objective: 'Shift mood by naming three good things today.',
+      conditionTypes: ['Low Mood', 'Stress', 'Anxiety'],
+      ageRange: '7-18',
+      skillCategory: 'Positive Thinking',
+      difficultyLevel: 1,
+      materials: ['Notebook or notes app'],
+      instructions: [
+        'Write one good thing from today.',
+        'Write a second good thing, even if small.',
+        'Write a third good thing and why it mattered.',
+        'Read all three out loud slowly.',
+        'End with one deep breath and a small smile.',
+      ],
+      durationMinutes: 6,
+      expectedOutcomes: 'Child can use gratitude to improve mood quickly.',
+      targetSkills: ['positive_reflection', 'mood_shift', 'self_awareness'],
+      activityType: 'guided',
+      iconName: 'favorite',
+    ),
+    TherapyModuleModel(
+      id: 'calm_08',
+      title: 'Stress Thermometer Check',
+      objective: 'Rate stress level and pick the right calm action.',
+      conditionTypes: ['Anxiety', 'Stress', 'ADHD'],
+      ageRange: '6-18',
+      skillCategory: 'Emotional Balance',
+      difficultyLevel: 2,
+      materials: ['Stress scale card 1-5'],
+      instructions: [
+        'Point to current stress level from 1 to 5.',
+        'If at 1-2, do one deep breath and continue work.',
+        'If at 3, do grounding for 2 minutes.',
+        'If at 4-5, do breathing plus ask an adult for support.',
+        'Check stress number again after 5 minutes.',
+      ],
+      durationMinutes: 5,
+      expectedOutcomes: 'Child learns to choose calm tools by stress level.',
+      targetSkills: ['self_monitoring', 'coping_choice', 'emotion_regulation'],
+      activityType: 'interactive',
+      iconName: 'thermostat',
+    ),
+    TherapyModuleModel(
+      id: 'calm_09',
+      title: 'Mindful Walking',
+      objective: 'Calm racing thoughts through slow mindful steps.',
+      conditionTypes: ['Stress', 'Anxiety', 'Hyperactivity'],
+      ageRange: '6-18',
+      skillCategory: 'Movement Calm',
+      difficultyLevel: 1,
+      materials: ['Safe walking space'],
+      instructions: [
+        'Walk slowly for 10 steps.',
+        'Notice heel touch, then toes touch on each step.',
+        'Match one inhale with two steps.',
+        'Match one exhale with two steps.',
+        'Finish with hands on heart and one thank-you thought.',
+      ],
+      durationMinutes: 8,
+      expectedOutcomes: 'Child can settle body energy with mindful movement.',
+      targetSkills: ['mindful_movement', 'focus', 'nervous_system_calm'],
+      activityType: 'guided',
+      iconName: 'directions_walk',
+    ),
+    TherapyModuleModel(
+      id: 'calm_10',
+      title: 'Bedtime Slow Down',
+      objective: 'Create a short routine that supports calm sleep.',
+      conditionTypes: ['Sleep difficulties', 'Anxiety', 'Stress'],
+      ageRange: '5-16',
+      skillCategory: 'Sleep Calm',
+      difficultyLevel: 2,
+      materials: ['Dim light', 'Water bottle'],
+      instructions: [
+        'Turn lights low and put screen away.',
+        'Take 5 slow breaths while sitting on bed.',
+        'Stretch arms and legs for 1 minute.',
+        'Say one calm sentence: "I am safe and ready to rest."',
+        'Lie down and count 10 slow breaths.',
+      ],
+      durationMinutes: 10,
+      expectedOutcomes: 'Child follows a repeatable routine before sleep.',
+      targetSkills: ['sleep_hygiene', 'night_calm', 'routine_building'],
+      activityType: 'guided',
+      iconName: 'bedtime',
+    ),
+  ];
 
   static final List<TherapyModuleModel> _baseModules = [
     // ── COMMUNICATION SKILLS (5) ──────────────────────────────
@@ -793,6 +1018,75 @@ class TherapyModulesRegistry {
     );
   }
 
+  static TherapyModuleModel _simplifyModuleLanguage(TherapyModuleModel module) {
+    return TherapyModuleModel(
+      id: module.id,
+      title: _toSimpleText(module.title),
+      objective: _toSimpleText(module.objective),
+      conditionTypes: module.conditionTypes,
+      ageRange: module.ageRange,
+      skillCategory: module.skillCategory,
+      difficultyLevel: module.difficultyLevel,
+      materials: module.materials.map(_toSimpleText).toList(),
+      instructions: module.instructions.map(_toSimpleText).toList(),
+      durationMinutes: module.durationMinutes,
+      safetyNotes: module.safetyNotes == null
+          ? null
+          : _toSimpleText(module.safetyNotes!),
+      expectedOutcomes: module.expectedOutcomes == null
+          ? null
+          : _toSimpleText(module.expectedOutcomes!),
+      createdBy: module.createdBy,
+      isExpertApproved: module.isExpertApproved,
+      mediaUrls: module.mediaUrls,
+      iconName: module.iconName,
+      activityType: module.activityType,
+      targetSkills: module.targetSkills,
+      prerequisites: module.prerequisites,
+      adaptiveDifficultyEnabled: module.adaptiveDifficultyEnabled,
+      createdAt: module.createdAt,
+    );
+  }
+
+  static String _toSimpleText(String text) {
+    var simple = text;
+
+    const replacements = {
+      'independently': 'on their own',
+      'identify': 'find',
+      'identifies': 'finds',
+      'demonstrate': 'show',
+      'demonstrates': 'shows',
+      'encourage': 'help',
+      'encourages': 'helps',
+      'gradually': 'slowly',
+      'appropriate': 'right',
+      'strategy': 'plan',
+      'strategies': 'plans',
+      'discriminate': 'tell apart',
+      'discriminating': 'telling apart',
+      'sequential': 'step-by-step',
+      'utilize': 'use',
+      'utilizing': 'using',
+      'environmental': 'everyday',
+      'narrative': 'story',
+      'initiation': 'starting',
+      'maintain': 'keep',
+      'minimal prompting': 'a little help',
+      'with minimal help': 'with a little help',
+    };
+
+    replacements.forEach((from, to) {
+      simple = simple.replaceAll(from, to);
+      simple = simple.replaceAll(
+        from[0].toUpperCase() + from.substring(1),
+        to[0].toUpperCase() + to.substring(1),
+      );
+    });
+
+    return simple;
+  }
+
   static List<String> _referenceUrlsFor(TherapyModuleModel module) {
     final categoryTag = _categoryReferenceTag(module.skillCategory);
     final encoded = Uri.encodeComponent(categoryTag);
@@ -805,6 +1099,22 @@ class TherapyModulesRegistry {
 
   static String _categoryReferenceTag(String category) {
     switch (category.toLowerCase()) {
+      case 'breathing':
+        return 'breathing exercise calm';
+      case 'mindfulness':
+        return 'mindfulness meditation kids';
+      case 'body relaxation':
+        return 'muscle relaxation wellness';
+      case 'emotional balance':
+        return 'emotion regulation calm';
+      case 'creative calm':
+        return 'calm coloring art therapy';
+      case 'positive thinking':
+        return 'gratitude journaling wellness';
+      case 'movement calm':
+        return 'mindful walking relaxation';
+      case 'sleep calm':
+        return 'bedtime calm routine';
       case 'communication':
         return 'speech therapy';
       case 'emotional recognition':

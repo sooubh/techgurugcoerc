@@ -88,7 +88,7 @@ class RoleSelectionScreen extends StatelessWidget {
                   icon: Icons.family_restroom_rounded,
                   title: 'Parent / Caregiver',
                   subtitle:
-                      'Track progress, get AI guidance,\nmanage therapy activities',
+                      'See progress, get AI help,\ndo easy calming activities',
                   gradient: AppGradients.hero,
                   delay: 400,
                   onTap: () => Navigator.pushReplacementNamed(context, '/home'),

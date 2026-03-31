@@ -24,6 +24,46 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  // Always available doctor profiles shown in the app when backend data is empty.
+  static final List<DoctorModel> _featuredDoctors = [
+    DoctorModel(
+      id: 'featured-doctor-1',
+      name: 'Aisha Khan',
+      email: 'aisha.khan@careai.app',
+      specialization: 'Clinical Psychologist',
+      clinicName: 'CARE-AI Wellness Center',
+      phone: '+91-98765-11001',
+      bio: 'Focuses on stress, anxiety, and emotional resilience for adults.',
+    ),
+    DoctorModel(
+      id: 'featured-doctor-2',
+      name: 'Rohit Sharma',
+      email: 'rohit.sharma@careai.app',
+      specialization: 'Psychiatrist',
+      clinicName: 'MindBridge Multi-Speciality Clinic',
+      phone: '+91-98765-11002',
+      bio: 'Experienced in mood disorders, sleep issues, and medication planning.',
+    ),
+    DoctorModel(
+      id: 'featured-doctor-3',
+      name: 'Meera Iyer',
+      email: 'meera.iyer@careai.app',
+      specialization: 'Counseling Therapist',
+      clinicName: 'Sukoon Behavioral Health',
+      phone: '+91-98765-11003',
+      bio: 'Supports relationship concerns, burnout, and life transitions.',
+    ),
+    DoctorModel(
+      id: 'featured-doctor-4',
+      name: 'Arjun Menon',
+      email: 'arjun.menon@careai.app',
+      specialization: 'Addiction Counselor',
+      clinicName: 'Renew Recovery Clinic',
+      phone: '+91-98765-11004',
+      bio: 'Specializes in recovery-focused care and relapse prevention.',
+    ),
+  ];
   
   // ─── In-Memory Cache (Optimization) ───────────────────────────
   UserModel? _cachedUser;
@@ -968,9 +1008,19 @@ class FirebaseService {
             .where('role', isEqualTo: 'doctor')
             .get();
 
-    return snapshot.docs
+    final firestoreDoctors = snapshot.docs
         .map((doc) => DoctorModel.fromMap(doc.data(), doc.id))
         .toList();
+
+    final mergedByEmail = <String, DoctorModel>{
+      for (final doctor in _featuredDoctors) doctor.email.toLowerCase(): doctor,
+      for (final doctor in firestoreDoctors)
+        doctor.email.toLowerCase().trim().isNotEmpty
+            ? doctor.email.toLowerCase().trim()
+            : doctor.id: doctor,
+    };
+
+    return mergedByEmail.values.toList();
   }
 
   /// Send an adult consultation request to a doctor.

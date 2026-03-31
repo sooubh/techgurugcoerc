@@ -302,7 +302,7 @@ Each object must have exactly these keys:
     final streak = weeklyStats['streak'] ?? 0;
 
     final prompt = '''
-Analyze this user's recent app activity and child profile to generate a highly personalized, empathetic 4-point mental health and well-being summary. 
+  Analyze this user's recent app activity and child profile and generate a brief 4-point mental health summary.
 
 Context (Anonymized):
 - Subject: The Caregiver / User
@@ -311,11 +311,13 @@ Context (Anonymized):
 - Recent Activities Completed: $activitiesCount
 - Current App Streak: $streak days
 
-Format your response STRICTLY as a JSON object with exactly these four keys mapping to short, 1-2 sentence insights analyzing their situation:
-- "earlyIdentification": Provide an insight regarding burnout risk. Emphasize early identification. (e.g. "You've been highly active this week; remember to watch for signs of caregiver fatigue.")
-- "supportAccess": Suggest a specific type of support they might need from the app or external resources based on their activity.
-- "ethicalPrivacy": Provide a reassuring statement about how the AI respects their privacy while generating these insights.
-- "wellBeing": Give a short summary of their overall well-being trajectory based on their streak and engagement.
+Format your response STRICTLY as a JSON object with exactly these four keys.
+Each value must be a single short sentence with 8 to 16 words.
+Do not use semicolons, extra clauses, or multiple sentences.
+- "earlyIdentification": Burnout-risk insight.
+- "supportAccess": One practical support suggestion.
+- "ethicalPrivacy": One clear privacy reassurance.
+- "wellBeing": One short well-being summary.
 
 Return ONLY the raw JSON object. No markdown formatting.
 ''';
@@ -333,7 +335,13 @@ Return ONLY the raw JSON object. No markdown formatting.
       }
 
       final parsed = json.decode(jsonStr) as Map<String, dynamic>;
-      return MentalHealthInsightModel.fromMap(parsed);
+      final insight = MentalHealthInsightModel.fromMap(parsed);
+      return MentalHealthInsightModel(
+        earlyIdentification: _shortInsight(insight.earlyIdentification),
+        supportAccess: _shortInsight(insight.supportAccess),
+        ethicalPrivacy: _shortInsight(insight.ethicalPrivacy),
+        wellBeing: _shortInsight(insight.wellBeing),
+      );
     } catch (e, stack) {
       AppLogger.error(
         'AiService.getMentalHealthInsights',
@@ -347,11 +355,27 @@ Return ONLY the raw JSON object. No markdown formatting.
 
   MentalHealthInsightModel _getDefaultMentalHealthInsights() {
     return MentalHealthInsightModel(
-      earlyIdentification: 'Routine check-ins help identify burnout risks early. Take a moment to assess your feelings.',
-      supportAccess: 'Remember that seeking support is a sign of strength. The app provides tools for instant connection.',
-      ethicalPrivacy: 'All behavioral data is analyzed securely and locally protected on your device.',
-      wellBeing: 'Consistent routines enhance daily well-being for both you and your child. Keep up the great work!',
+      earlyIdentification:
+          'Quick daily check-ins can spot stress signs before they grow.',
+      supportAccess:
+          'Use one short calming activity today, then ask support if needed.',
+      ethicalPrivacy:
+          'Your insight data stays protected and is used only for your support.',
+      wellBeing: 'Your steady app use shows healthy progress this week.',
     );
+  }
+
+  String _shortInsight(String text) {
+    final clean = text.replaceAll('\n', ' ').trim();
+    if (clean.isEmpty) return 'No insight available right now.';
+
+    final firstSentence = clean.split(RegExp(r'[.!?]')).first.trim();
+    final words = firstSentence.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+
+    if (words.isEmpty) return 'No insight available right now.';
+    if (words.length <= 16) return '$firstSentence.';
+
+    return '${words.take(16).join(' ')}.';
   }
 
   /// Build child context string for chat initialization.

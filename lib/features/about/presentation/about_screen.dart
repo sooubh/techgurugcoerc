@@ -146,32 +146,32 @@ class AboutScreen extends StatelessWidget {
       {
         'q': 'Is CARE-AI a replacement for therapy?',
         'a':
-            'No. CARE-AI provides supplementary guidance and activities. It does not replace professional medical advice, diagnosis, or treatment. Always consult qualified healthcare providers.',
+        'No. CARE-AI gives extra help and activities. It does not replace a doctor or therapist.',
       },
       {
         'q': 'How does the AI personalize responses?',
         'a':
-            'When you set up your child\'s profile (conditions, communication level, goals), the AI uses this context to tailor every response and activity recommendation.',
+        'When you fill your child profile, AI uses that info to give better answers and activity ideas.',
       },
       {
         'q': 'Is my data secure?',
         'a':
-            'Yes. All data is stored securely in Firebase with encryption in transit and at rest. Your data is never shared with third parties. You can export or delete your data anytime from Settings.',
+        'Yes. Your data is stored safely in Firebase. We do not share your data with others. You can export or delete it from Settings.',
       },
       {
         'q': 'Which conditions does CARE-AI support?',
         'a':
-            'CARE-AI supports a wide range including Autism (ASD), ADHD, cerebral palsy, Down syndrome, speech delays, sensory processing disorders, and more. Activities are designed to be adaptable.',
+        'CARE-AI supports many needs like Autism (ASD), ADHD, cerebral palsy, Down syndrome, speech delay, and sensory issues. Activities can be adjusted.',
       },
       {
         'q': 'Can I use CARE-AI offline?',
         'a':
-            'Most screens work offline. However, AI Chat requires internet to communicate with the Gemini API. Activities, games, and progress tracking work without connection.',
+        'Most screens work offline. AI Chat needs internet. Activities, games, and progress can work without internet.',
       },
       {
         'q': 'How do I share reports with my doctor?',
         'a':
-            'Go to Settings → Generate Doctor Report. This creates a professional summary you can copy and share with your healthcare provider via text, email, or print.',
+        'Go to Settings and tap Generate Doctor Report. Then copy and share it by message, email, or print.',
       },
     ];
 

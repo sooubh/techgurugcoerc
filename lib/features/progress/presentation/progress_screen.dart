@@ -7,8 +7,8 @@ import '../../../services/cache/smart_data_repository.dart';
 import 'package:provider/provider.dart';
 import '../../../models/activity_log_model.dart';
 
-/// Progress tracking screen — real-time data from Firestore.
-/// Shows weekly stats, skill progress, activity history, milestones, weekly trend.
+/// Easy progress screen with live data from Firestore.
+/// Shows weekly summary, stress-skill growth, activity history, and trend.
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
 
@@ -44,16 +44,31 @@ class _ProgressScreenState extends State<ProgressScreen> {
       }
       
       final dashboard = await repository.getDashboardData(uid, isAdult: _isAdultView);
-      final logs = await _firebaseService.getActivityLogs(limit: 5, isAdult: _isAdultView);
+      final logs = await _firebaseService.getActivityLogs(limit: 50, isAdult: _isAdultView);
       final milestones = _isAdultView ? <Map<String, dynamic>>[] : await _firebaseService.getMilestones();
+
+      final fallbackWeekly = _computeWeeklyStatsFromLogs(logs);
+      final fallbackDailyCounts = _computeDailyCountsFromLogs(logs);
 
       if (mounted) {
         setState(() {
-          _weeklyStats = dashboard['weeklyStats'] ?? {'count': 0, 'minutes': 0, 'streak': 0};
+          final weeklyFromDashboard = Map<String, dynamic>.from(
+            dashboard['weeklyStats'] ?? {},
+          );
+          _weeklyStats =
+              (weeklyFromDashboard['count'] ?? 0) == 0 && logs.isNotEmpty
+                  ? fallbackWeekly
+                  : (dashboard['weeklyStats'] ?? {'count': 0, 'minutes': 0, 'streak': 0});
           _skillProgress = Map<String, double>.from(dashboard['skillProgress'] ?? {});
           _activityLogs = logs;
           _milestones = milestones;
-          _dailyCounts = List<int>.from(dashboard['dailyActivityCounts'] ?? List.filled(7, 0));
+          final dashboardCounts = List<int>.from(
+            dashboard['dailyActivityCounts'] ?? List.filled(7, 0),
+          );
+          _dailyCounts =
+              dashboardCounts.every((c) => c == 0) && logs.isNotEmpty
+                  ? fallbackDailyCounts
+                  : dashboardCounts;
           _isLoading = false;
         });
       }
@@ -62,13 +77,51 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
   }
 
+  Map<String, dynamic> _computeWeeklyStatsFromLogs(List<ActivityLogModel> logs) {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    final weekLogs = logs.where((l) => !l.completedAt.isBefore(sevenDaysAgo)).toList();
+
+    final totalSeconds = weekLogs.fold<int>(0, (sum, l) => sum + l.durationSeconds);
+    final activeDays = <String>{};
+    for (final log in weekLogs) {
+      final d = log.completedAt;
+      activeDays.add('${d.year}-${d.month}-${d.day}');
+    }
+
+    int streak = 0;
+    var checkDate = DateTime.now();
+    checkDate = DateTime(checkDate.year, checkDate.month, checkDate.day);
+    while (activeDays.contains('${checkDate.year}-${checkDate.month}-${checkDate.day}')) {
+      streak++;
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    return {
+      'count': weekLogs.length,
+      'minutes': (totalSeconds / 60).round(),
+      'streak': streak,
+    };
+  }
+
+  List<int> _computeDailyCountsFromLogs(List<ActivityLogModel> logs) {
+    final now = DateTime.now();
+    final counts = List.filled(7, 0);
+    for (final log in logs) {
+      final daysAgo = now.difference(log.completedAt).inDays;
+      if (daysAgo >= 0 && daysAgo < 7) {
+        counts[6 - daysAgo] += 1;
+      }
+    }
+    return counts;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Progress'),
+        title: const Text('How You Are Doing'),
         actions: [
           IconButton(
             onPressed: () {
@@ -76,7 +129,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               Clipboard.setData(ClipboardData(text: report));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Progress report copied to clipboard! 📊'),
+                  content: Text('Report copied to clipboard.'),
                   backgroundColor: AppColors.success,
                 ),
               );
@@ -106,7 +159,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       const SizedBox(height: 20),
 
                       // ─── Skill Progress Rings ──────────────────
-                      _sectionTitle(context, 'Skill Progress'),
+                      _sectionTitle(context, 'Stress Relief Skills'),
                       const SizedBox(height: 12),
                       _buildSkillRings(context, isDark),
                       const SizedBox(height: 24),
@@ -119,16 +172,22 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
                       // ─── Milestones ────────────────────────────
                       if (!_isAdultView) ...[
-                        _sectionTitle(context, 'Milestones Achieved'),
+                        _sectionTitle(context, 'Big Wins'),
                         const SizedBox(height: 12),
                         _buildMilestones(context, isDark),
                         const SizedBox(height: 24),
                       ],
 
                       // ─── Weekly Trend ──────────────────────────
-                      _sectionTitle(context, 'Weekly Activity Trend'),
+                      _sectionTitle(context, 'This Week at a Glance'),
                       const SizedBox(height: 12),
                       _buildWeeklyTrend(context, isDark),
+                      const SizedBox(height: 24),
+
+                      // ─── Full Progress Report ───────────────────
+                      _sectionTitle(context, 'Full Report'),
+                      const SizedBox(height: 12),
+                      _buildFullProgressReport(context, isDark),
                     ],
                   ),
                 ),
@@ -180,7 +239,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  'Child Progress',
+                  'Child View',
                   style: TextStyle(
                     fontWeight: !_isAdultView ? FontWeight.bold : FontWeight.normal,
                     color: !_isAdultView 
@@ -216,7 +275,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  'Adult Progress',
+                  'Adult View',
                   style: TextStyle(
                     fontWeight: _isAdultView ? FontWeight.bold : FontWeight.normal,
                     color: _isAdultView 
@@ -234,18 +293,18 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   String _generateReport() {
     final buffer = StringBuffer();
-    buffer.writeln('📊 CARE-AI Progress Report');
+    buffer.writeln('CARE-AI Simple Report');
     buffer.writeln(
       'Generated: ${DateTime.now().toIso8601String().substring(0, 10)}',
     );
     buffer.writeln('─────────────────────────');
     buffer.writeln();
-    buffer.writeln('📈 Weekly Summary');
+    buffer.writeln('Weekly Summary');
     buffer.writeln('  Activities Completed: ${_weeklyStats['count']}');
     buffer.writeln('  Total Minutes: ${_weeklyStats['minutes']}');
     buffer.writeln('  Current Streak: ${_weeklyStats['streak']} days');
     buffer.writeln();
-    buffer.writeln('🎯 Skill Progress');
+    buffer.writeln('Stress Relief Skills');
     if (_skillProgress.isEmpty) {
       buffer.writeln('  No activities logged yet.');
     }
@@ -253,7 +312,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       buffer.writeln('  ${entry.key}: ${(entry.value * 100).toInt()}%');
     }
     buffer.writeln();
-    buffer.writeln('🏆 Milestones');
+    buffer.writeln('Big Wins');
     if (_milestones.isEmpty) {
       buffer.writeln('  No milestones yet.');
     }
@@ -261,7 +320,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       buffer.writeln('  ${m['emoji'] ?? '⭐'} ${m['title'] ?? 'Milestone'}');
     }
     buffer.writeln();
-    buffer.writeln('✅ Recent Activities');
+    buffer.writeln('Recent Activities');
     if (_activityLogs.isEmpty) {
       buffer.writeln('  No activities logged yet.');
     }
@@ -344,7 +403,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       return _buildEmptyState(
         context,
         isDark,
-        'Complete activities to see skill progress.',
+        'Do activities to see your skill growth.',
       );
     }
 
@@ -416,7 +475,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       return _buildEmptyState(
         context,
         isDark,
-        'No activities completed yet. Start your first!',
+        'No activities yet. Start one now.',
       );
     }
 
@@ -487,7 +546,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       return _buildEmptyState(
         context,
         isDark,
-        'Milestones will appear as your child progresses.',
+        'Big wins will show up as progress grows.',
       );
     }
 
@@ -679,6 +738,73 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ],
       ),
     ).animate().fadeIn(duration: 300.ms);
+  }
+
+  Widget _buildFullProgressReport(BuildContext context, bool isDark) {
+    final report = _generateReport();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? AppColors.darkBorder.withValues(alpha: 0.2)
+              : AppColors.divider,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.description_rounded, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _isAdultView ? 'Adult Full Report' : 'Child Full Report',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: report));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Full report copied to clipboard.'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                label: const Text('Copy'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SelectableText(
+              report,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                fontFamily: 'monospace',
+                color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 500.ms, duration: 450.ms);
   }
 
   String _timeAgo(DateTime date) {

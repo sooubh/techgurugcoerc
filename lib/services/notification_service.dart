@@ -388,7 +388,7 @@ class NotificationService {
       await _localNotifs.zonedSchedule(
         id: dailyReminderId,
         title: 'Daily Check-in',
-        body: "It's time to review today's progress and activities.",
+        body: 'Time to check your activities for today.',
         scheduledDate: scheduled,
         notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -413,7 +413,7 @@ class NotificationService {
     try {
       final body = message ??
           '$streakDays-day streak at risk! '
-              'Log an activity before midnight to keep your streak.';
+            'Do one activity before midnight to keep your streak.';
 
       final androidDetails = AndroidNotificationDetails(
         NotificationChannels.streakId,
@@ -457,7 +457,7 @@ class NotificationService {
         inputData: {
           'notifId': inactivity2DayId,
           'title': '2 days since last session',
-          'body': "Don't break the habit! A quick 10-min activity helps 💪",
+          'body': 'Keep your habit going. Try one quick 10-minute activity.',
           'payload': 'progress',
         },
         existingWorkPolicy: ExistingWorkPolicy.replace,
@@ -471,7 +471,7 @@ class NotificationService {
         inputData: {
           'notifId': inactivity5DayId,
           'title': '5 days without activities',
-          'body': 'Consistency is key for progress. Log an activity today.',
+          'body': 'Try one activity today to keep moving forward.',
           'payload': 'progress',
         },
         existingWorkPolicy: ExistingWorkPolicy.replace,
@@ -485,7 +485,7 @@ class NotificationService {
         inputData: {
           'notifId': inactivity7DayId,
           'title': "It's been a week!",
-          'body': "Don't lose track of the great work you've started. Open the app to continue.",
+          'body': 'You have done good work. Open the app and continue today.',
           'payload': 'progress',
         },
         existingWorkPolicy: ExistingWorkPolicy.replace,

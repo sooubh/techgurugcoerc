@@ -10,8 +10,10 @@ import '../../../core/config/env_config.dart';
 import '../../../services/sentiment_risk_analyzer.dart';
 import '../../../services/future_risk_predictor.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/mental_health_service.dart';
 import '../../../models/risk_forecast_model.dart';
 import '../../../models/activity_log_model.dart';
+import '../../../models/risk_alert_model.dart';
 import 'crisis_support_screen.dart';
 
 /// Adult Mental Health Screen — mood tracker, AI feelings chat,
@@ -42,6 +44,7 @@ class _AdultWellnessScreenState extends State<AdultWellnessScreen> {
 
   // ─── Risk Analyzer State ──────────────────────────────────
   late final SentimentRiskAnalyzer _riskAnalyzer;
+  late final MentalHealthService _mentalHealthService;
 
   // ─── Risk Forecast State ──────────────────────────────────
   late final FutureRiskPredictor _riskPredictor;
@@ -152,6 +155,7 @@ DISCLAIMER: Always gently remind the user that your support supplements but does
     _loadMood();
     _initChatModel();
     _riskAnalyzer = SentimentRiskAnalyzer();
+    _mentalHealthService = MentalHealthService(FirebaseService());
     _riskPredictor = FutureRiskPredictor(FirebaseService());
   }
 
@@ -336,13 +340,26 @@ DISCLAIMER: Always gently remind the user that your support supplements but does
       _scrollChatToBottom();
 
       // Trigger crisis bottom sheet for high risk
+      if (result.level == SentimentRiskLevel.medium) {
+        _mentalHealthService.logRiskAlert(
+          source: AlertSource.aiChat,
+          severity: AlertSeverity.medium,
+          description: 'Adult feelings chat detected moderate emotional distress.',
+        );
+      }
+
       if (result.level == SentimentRiskLevel.high) {
+        _mentalHealthService.logRiskAlert(
+          source: AlertSource.aiChat,
+          severity: AlertSeverity.high,
+          description: 'Adult feelings chat detected high emotional risk indicators.',
+        );
+
         Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) {
-            // Fake alert to doctor as requested
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('⚠️ High Risk Detected: Alert auto-sent to your connected doctor.'),
+                content: Text('⚠️ High Risk Detected: Alert logged for early identification and support follow-up.'),
                 backgroundColor: Color(0xFFDC2626), // AppColors.error
                 duration: Duration(seconds: 4),
               ),

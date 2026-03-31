@@ -131,7 +131,19 @@ BEHAVIORAL RULES:
 - Current screen context: ${currentScreen ?? 'unknown'}
 ''';
 
-    await _liveService.connect(systemInstruction);
+    try {
+      await _liveService.connect(systemInstruction);
+    } catch (e, stack) {
+      AppLogger.error(
+        'VoiceAssistantService',
+        'Live connect failed',
+        e,
+        stack,
+      );
+      await stopSession();
+      _setError('Voice assistant could not connect. Please check internet and API key.');
+      return;
+    }
     notifyListeners(); // Safe — called after connect(), not during build
 
     // Context auto-refresh timer (every 5 mins)
@@ -163,6 +175,17 @@ BEHAVIORAL RULES:
 
     // Start mic ONLY after setupComplete is received from API
     _msgSub = _liveService.messagesStream.listen((msg) async {
+      if (msg.containsKey('error')) {
+        final err = msg['error'];
+        final errorMessage =
+            err is Map<String, dynamic>
+                ? (err['message']?.toString() ?? 'Voice connection error.')
+                : 'Voice connection error.';
+        _setError(errorMessage);
+        await stopSession();
+        return;
+      }
+
       if (msg.containsKey('setupComplete')) {
         AppLogger.info(
           'VoiceAssistantService',
@@ -301,7 +324,7 @@ BEHAVIORAL RULES:
           Future.delayed(const Duration(milliseconds: 300), () {
             _liveService.sendClientContent(
               'Navigation failed: screen "$target" was not recognised. '
-              'Tell the user the available screens they can go to: '
+              'Tell the user these screens are available: '
               'Home, Chat, Activities, Progress, Daily Plan, Wellness, '
               'Games, Emergency, Community, Settings, Achievements.',
             );
