@@ -89,12 +89,41 @@ class VoiceAssistantService extends ChangeNotifier {
     ChildProfileModel? childProfile,
     String? currentScreen,
   }) async {
+    AppLogger.info(
+      'VoiceAssistantService',
+      'Starting live session...',
+    );
+
+    // Check API key first
+    if (!_liveService.hasValidApiKey()) {
+      _setError('Gemini API key not configured. Please set GEMINI_API_KEY in .env file.');
+      AppLogger.error(
+        'VoiceAssistantService',
+        'Gemini API key is missing or invalid',
+        null,
+        null,
+      );
+      return;
+    }
+
     if (!_micAvailable) {
-      _setError('Microphone permission denied.');
+      _setError('Microphone permission denied. Please enable microphone in app settings.');
+      AppLogger.error(
+        'VoiceAssistantService',
+        'Microphone not available',
+        null,
+        null,
+      );
       return;
     }
     if (!_isOnline) {
-      _setError('No internet connection.');
+      _setError('No internet connection. Please check your WiFi or mobile data.');
+      AppLogger.error(
+        'VoiceAssistantService',
+        'No internet connection',
+        null,
+        null,
+      );
       return;
     }
 
@@ -132,16 +161,37 @@ BEHAVIORAL RULES:
 ''';
 
     try {
+      AppLogger.info(
+        'VoiceAssistantService',
+        'Connecting to Gemini Live API...',
+      );
       await _liveService.connect(systemInstruction);
+      AppLogger.info(
+        'VoiceAssistantService',
+        'Successfully connected to Gemini Live API',
+      );
     } catch (e, stack) {
       AppLogger.error(
         'VoiceAssistantService',
-        'Live connect failed',
+        'Live connect failed: $e',
         e,
         stack,
       );
       await stopSession();
-      _setError('Voice assistant could not connect. Please check internet and API key.');
+      
+      // Provide specific error messages based on exception type
+      String errorMsg = 'Voice connection failed.';
+      if (e.toString().contains('API_KEY') || e.toString().contains('invalid')) {
+        errorMsg = 'Invalid Gemini API Key. Update .env file with a valid key from https://aistudio.google.com/app/apikey';
+      } else if (e.toString().contains('timeout') || e.toString().contains('Timeout')) {
+        errorMsg = 'Connection timeout. API Key may be invalid or network is slow. Check https://aistudio.google.com/app/apikey';
+      } else if (e.toString().contains('internet')) {
+        errorMsg = 'No internet connection. Check WiFi or mobile data.';
+      } else {
+        errorMsg = 'Error: ${e.toString().split('\n').first}';
+      }
+      
+      _setError(errorMsg);
       return;
     }
     notifyListeners(); // Safe — called after connect(), not during build
@@ -182,6 +232,12 @@ BEHAVIORAL RULES:
                 ? (err['message']?.toString() ?? 'Voice connection error.')
                 : 'Voice connection error.';
         _setError(errorMessage);
+        AppLogger.error(
+          'VoiceAssistantService',
+          'API error: $errorMessage',
+          null,
+          null,
+        );
         await stopSession();
         return;
       }

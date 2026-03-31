@@ -16,14 +16,17 @@ import '../models/post_model.dart';
 import '../models/therapy_session_model.dart';
 import '../models/assessment_model.dart';
 import '../models/risk_alert_model.dart';
+import '../models/doctor_chat_model.dart';
 import '../core/utils/app_logger.dart';
 import '../core/errors/app_exceptions.dart';
+import 'package:firebase_database/firebase_database.dart' as rtdb;
 
 /// Centralized Firebase service handling Auth, Firestore reads/writes.
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final rtdb.FirebaseDatabase _rtdb = rtdb.FirebaseDatabase.instance;
 
   // Always available doctor profiles shown in the app when backend data is empty.
   static final List<DoctorModel> _featuredDoctors = [
@@ -1287,5 +1290,282 @@ class FirebaseService {
         .collection('risk_alerts')
         .doc(alertId)
         .update({'isResolved': true});
+  }
+
+  // ─── Doctor-Patient Real-time Chat (Firebase Realtime DB) ───────────────
+
+  /// Send a message in the doctor-patient chat (uses Firebase Realtime DB).
+  /// Path: doctor_patient_chats/{patientUserId}/{doctorId}/messages/{messageId}
+  Future<void> sendDoctorChatMessage(
+    String doctorId,
+    DoctorChatMessage message,
+  ) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('User not authenticated');
+
+    try {
+      final messagesRef = _rtdb
+          .ref()
+          .child('doctor_patient_chats')
+          .child(uid) // patient/user id
+          .child(doctorId)
+          .child('messages');
+
+      final newMessageRef = messagesRef.push();
+      await newMessageRef.set(message.toMap());
+      AppLogger.info('FirebaseService', 'Doctor chat message sent successfully');
+    } catch (e) {
+      AppLogger.error('FirebaseService', 'Failed to send doctor chat message', e, StackTrace.current);
+      rethrow;
+    }
+  }
+
+  /// Stream of realtime chat messages between patient and doctor.
+  /// Returns messages ordered by timestamp.
+  Stream<List<DoctorChatMessage>> getDoctorChatMessages(String doctorId) {
+    final uid = currentUser?.uid;
+    if (uid == null) return Stream.value([]);
+
+    return _rtdb
+        .ref()
+        .child('doctor_patient_chats')
+        .child(uid)
+        .child(doctorId)
+        .child('messages')
+        .onValue
+        .map((event) {
+          if (event.snapshot.value == null) return [];
+
+          final messages = <DoctorChatMessage>[];
+          final data = event.snapshot.value as Map<dynamic, dynamic>;
+
+          data.forEach((key, value) {
+            if (value is Map<dynamic, dynamic>) {
+              final message = DoctorChatMessage.fromMap(value.cast<String, dynamic>(), key as String);
+              messages.add(message);
+            }
+          });
+
+          // Sort by timestamp
+          messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          return messages;
+        });
+  }
+
+  /// Get recent doctor-patient chat sessions for current user.
+  /// Returns a map of doctorId -> last message info and unread count.
+  Future<List<DoctorChatSession>> getDoctorChatSessions() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return [];
+
+    try {
+      final snapshot = await _rtdb
+          .ref()
+          .child('doctor_patient_chats')
+          .child(uid)
+          .get();
+
+      if (!snapshot.exists || snapshot.value == null) return [];
+
+      final sessions = <DoctorChatSession>[];
+      final data = snapshot.value as Map<dynamic, dynamic>;
+
+      for (final entry in data.entries) {
+        final doctorId = entry.key as String;
+        final chatData = entry.value as Map<dynamic, dynamic>;
+
+        // Get messages to extract last message and count unread
+        final messagesData = chatData['messages'] as Map<dynamic, dynamic>?;
+        if (messagesData == null) continue;
+
+        final messages = <DoctorChatMessage>[];
+        messagesData.forEach((key, value) {
+          if (value is Map<dynamic, dynamic>) {
+            final msg = DoctorChatMessage.fromMap(value.cast<String, dynamic>(), key as String);
+            messages.add(msg);
+          }
+        });
+
+        if (messages.isEmpty) continue;
+
+        messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        final lastMessage = messages.last;
+
+        // Count unread messages (from doctor)
+        final unreadCount = messages
+            .where((msg) => msg.isFromDoctor && !msg.isRead)
+            .length;
+
+        final session = DoctorChatSession(
+          id: doctorId,
+          doctorName: chatData['doctorName'] ?? 'Unknown Doctor',
+          doctorImageUrl: chatData['doctorImageUrl'],
+          patientName: chatData['patientName'],
+          lastMessageTime: lastMessage.timestamp,
+          unreadCount: unreadCount,
+          isOnline: chatData['doctorOnline'] ?? false,
+          lastMessage: lastMessage.message,
+        );
+
+        sessions.add(session);
+      }
+
+      // Sort by last message time (newest first)
+      sessions.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      return sessions;
+    } catch (e) {
+      AppLogger.error('FirebaseService', 'Failed to get doctor chat sessions', e, StackTrace.current);
+      return [];
+    }
+  }
+
+  /// Mark a message as read in the doctor-patient chat.
+  Future<void> markDoctorChatMessageAsRead(
+    String doctorId,
+    String messageId,
+  ) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      await _rtdb
+          .ref()
+          .child('doctor_patient_chats')
+          .child(uid)
+          .child(doctorId)
+          .child('messages')
+          .child(messageId)
+          .update({'isRead': true});
+    } catch (e) {
+      AppLogger.error('FirebaseService', 'Failed to mark message as read', e, StackTrace.current);
+    }
+  }
+
+  /// Update doctor's online status in the chat session.
+  Future<void> setDoctorOnlineStatus(String patientUserId, bool isOnline) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      await _rtdb
+          .ref()
+          .child('doctor_patient_chats')
+          .child(patientUserId)
+          .child(uid)
+          .update({'doctorOnline': isOnline});
+    } catch (e) {
+      AppLogger.error('FirebaseService', 'Failed to update online status', e, StackTrace.current);
+    }
+  }
+
+  /// Get doctor-side chat sessions (all patients chatting with this doctor).
+  Future<List<Map<String, dynamic>>> getDoctorChatWithPatients() async {
+    final doctorId = currentUser?.uid;
+    if (doctorId == null) return [];
+
+    try {
+      final snapshot = await _rtdb
+          .ref()
+          .child('doctor_patient_chats')
+          .get();
+
+      if (!snapshot.exists || snapshot.value == null) return [];
+
+      final patientChats = <Map<String, dynamic>>[];
+      final data = snapshot.value as Map<dynamic, dynamic>;
+
+      // Search for chats where this doctor appears
+      data.forEach((patientUid, patientChatData) {
+        if (patientChatData is Map<dynamic, dynamic>) {
+          final doctorChats = patientChatData[doctorId];
+          if (doctorChats is Map<dynamic, dynamic>) {
+            final messagesData = doctorChats['messages'] as Map<dynamic, dynamic>?;
+            if (messagesData != null && messagesData.isNotEmpty) {
+              patientChats.add({
+                'patientUserId': patientUid,
+                'doctorId': doctorId,
+                'patientName': doctorChats['patientName'] ?? 'Patient',
+                'lastMessageTime': doctorChats['lastMessageTime'],
+                'messageCount': messagesData.length,
+              });
+            }
+          }
+        }
+      });
+
+      return patientChats;
+    } catch (e) {
+      AppLogger.error('FirebaseService', 'Failed to get doctor patient chats', e, StackTrace.current);
+      return [];
+    }
+  }
+
+  /// Initialize or update a doctor-patient chat session metadata.
+  Future<void> initializeDoctorChatSession(
+    String patientUserId,
+    String doctorId,
+    String doctorName,
+    String patientName, {
+    String? doctorImageUrl,
+  }) async {
+    try {
+      await _rtdb
+          .ref()
+          .child('doctor_patient_chats')
+          .child(patientUserId)
+          .child(doctorId)
+          .update({
+            'doctorName': doctorName,
+            'patientName': patientName,
+            if (doctorImageUrl != null) 'doctorImageUrl': doctorImageUrl,
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+            'doctorOnline': false,
+          });
+    } catch (e) {
+      AppLogger.error('FirebaseService', 'Failed to initialize chat session', e, StackTrace.current);
+    }
+  }
+
+  /// Link doctor and patient for real-time chat.
+  /// Call this when a patient clicks on a doctor to connect with them.
+  Future<void> linkDoctorToPatient(DoctorModel doctor) async {
+    final patientUid = currentUser?.uid;
+    if (patientUid == null) throw Exception('Patient not authenticated');
+
+    try {
+      final patientProfile = await getUserProfile();
+      final patientName = patientProfile?.displayName ?? 'Patient';
+
+      // Initialize chat session in RTDB
+      await initializeDoctorChatSession(
+        patientUid,
+        doctor.id,
+        doctor.name,
+        patientName,
+        doctorImageUrl: null,
+      );
+
+      // Also save relationship to Firestore for easier queries
+      await _firestore
+          .collection('users')
+          .doc(patientUid)
+          .collection('connected_doctors')
+          .doc(doctor.id)
+          .set({
+            'doctorId': doctor.id,
+            'doctorName': doctor.name,
+            'doctorEmail': doctor.email,
+            'doctorSpecialization': doctor.specialization,
+            'connectedAt': FieldValue.serverTimestamp(),
+            'clinicName': doctor.clinicName,
+            'phone': doctor.phone,
+            'bio': doctor.bio,
+          }, SetOptions(merge: true));
+
+      AppLogger.info('FirebaseService', 'Doctor ${doctor.name} linked to patient');
+    } catch (e) {
+      AppLogger.error('FirebaseService', 'Failed to link doctor to patient', e, StackTrace.current);
+      rethrow;
+    }
   }
 }

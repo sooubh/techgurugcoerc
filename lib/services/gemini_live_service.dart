@@ -18,13 +18,24 @@ class GeminiLiveService {
 
   bool get isConnected => _channel != null && _setupComplete;
 
+  /// Check if API key is configured and valid
+  bool hasValidApiKey() {
+    final apiKey = EnvConfig.geminiApiKey;
+    return apiKey.isNotEmpty && apiKey.length > 10; // Basic validation
+  }
+
   Future<void> connect(String systemInstruction) async {
     if (_channel != null) return;
 
     final apiKey = EnvConfig.geminiApiKey;
-    if (apiKey.isEmpty) {
-      AppLogger.error('GeminiLiveService', 'Gemini API key is missing');
-      throw Exception('GEMINI_API_KEY is missing.');
+    if (apiKey.isEmpty || apiKey.length < 20) {
+      AppLogger.error('GeminiLiveService', 'Gemini API key is missing or invalid (${apiKey.length} chars)');
+      throw Exception('GEMINI_API_KEY is missing or invalid. Go to https://aistudio.google.com/app/apikey to get one.');
+    }
+
+    // Validate it looks like a real API key
+    if (!apiKey.startsWith('AIzaSy')) {
+      AppLogger.error('GeminiLiveService', 'API key doesn\'t start with "AIzaSy" - may be invalid');
     }
 
     final wsUrl = Uri.parse(
@@ -32,7 +43,7 @@ class GeminiLiveService {
     );
 
     try {
-      AppLogger.info('GeminiLiveService', 'Connecting to WebSocket...');
+      AppLogger.info('GeminiLiveService', 'Connecting to WebSocket with API key: ${apiKey.substring(0, 15)}...');
       _channel = WebSocketChannel.connect(wsUrl);
       _setupComplete = false;
       _setupCompleter = Completer<void>();
@@ -40,7 +51,7 @@ class GeminiLiveService {
       await _channel!.ready;
       AppLogger.info(
         'GeminiLiveService',
-        'WebSocket handshake complete — sending setup',
+        'WebSocket handshake complete — sending setup message',
       );
 
       _channel!.stream.listen(
@@ -60,12 +71,8 @@ class GeminiLiveService {
 
       final setupMessage = {
         "config": {
-          "model": "models/gemini-3.1-flash-live-preview",
+          "model": "models/gemini-2.0-flash",
           "responseModalities": ["AUDIO"],
-          // Server-side VAD: require clearer speech before triggering,
-          // and wait longer in silence before ending a turn.
-          // This prevents background noise, fans, AC, and TV from being
-          // treated as valid user speech.
           "realtimeInputConfig": {
             "automaticActivityDetection": {
               "disabled": false,
@@ -110,17 +117,27 @@ class GeminiLiveService {
       _channel!.sink.add(jsonEncode(setupMessage));
       AppLogger.info(
         'GeminiLiveService',
-        'Config message sent — waiting for server acknowledgement',
+        'Setup message sent — waiting for server acknowledgement (timeout: 15s)',
       );
 
       await _setupCompleter!.future.timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => throw TimeoutException('setupComplete timed out.'),
+        const Duration(seconds: 15),
+        onTimeout: () {
+          AppLogger.error(
+            'GeminiLiveService',
+            'TIMEOUT waiting for setupComplete. API Key may be invalid. Check: https://aistudio.google.com/app/apikey',
+          );
+          throw TimeoutException(
+            'Connection timeout (15s). API Key may be invalid. Check https://aistudio.google.com/app/apikey',
+          );
+        },
       );
+
+      AppLogger.info('GeminiLiveService', 'Setup complete — ready for audio');
     } catch (e, stack) {
       AppLogger.error(
         'GeminiLiveService',
-        'Error connecting WebSocket',
+        'Error connecting WebSocket: $e',
         e,
         stack,
       );

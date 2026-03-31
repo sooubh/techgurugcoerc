@@ -4,6 +4,7 @@ import '../../../services/permission_service.dart';
 import 'doctor_home_tab.dart';
 import 'doctor_requests_tab.dart';
 import 'doctor_patients_tab.dart';
+import 'doctor_chats_tab.dart';
 import 'doctor_alerts_tab.dart';
 import 'doctor_profile_tab.dart';
 
@@ -23,6 +24,7 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
     DoctorHomeTab(),
     DoctorRequestsTab(),
     DoctorPatientsTab(),
+    DoctorChatsTab(),
     DoctorAlertsTab(),
     DoctorProfileTab(),
   ];
@@ -59,8 +61,9 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
                 _navItem(Icons.dashboard_rounded, 'Dashboard', 0, isDark),
                 _navItem(Icons.notifications_rounded, 'Requests', 1, isDark),
                 _navItem(Icons.people_rounded, 'Patients', 2, isDark),
-                _navItem(Icons.warning_rounded, 'Alerts', 3, isDark),
-                _navItem(Icons.person_rounded, 'Profile', 4, isDark),
+                _navItem(Icons.message_rounded, 'Chats', 3, isDark),
+                _navItem(Icons.warning_rounded, 'Alerts', 4, isDark),
+                _navItem(Icons.person_rounded, 'Profile', 5, isDark),
               ],
             ),
           ),

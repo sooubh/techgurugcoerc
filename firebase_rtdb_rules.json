@@ -1,0 +1,40 @@
+{
+  "rules": {
+    "doctor_patient_chats": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$patientId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$doctorId": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "messages": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            "$messageId": {
+              ".read": "auth != null",
+              ".write": "auth != null"
+            }
+          },
+          "lastMessage": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          },
+          "unreadCount": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        }
+      }
+    },
+    "doctor_online_status": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$doctorId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}

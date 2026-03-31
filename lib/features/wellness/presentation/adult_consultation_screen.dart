@@ -55,24 +55,35 @@ class _AdultConsultationScreenState extends State<AdultConsultationScreen> {
 
     setState(() => _submittingDoctorId = doctor.id);
     try {
+      // Send consultation request
       await _firebaseService.sendAdultConsultationRequest(
         doctorId: doctor.id,
         note: _noteController.text.trim(),
       );
 
+      // Link doctor and patient for chat
+      await _firebaseService.linkDoctorToPatient(doctor);
+
       if (!mounted) return;
       _noteController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Consultation request sent to Dr. ${doctor.name}'),
+          content: Text('Connected with Dr. ${doctor.name}! You can now chat.'),
           backgroundColor: AppColors.success,
         ),
       );
+
+      // Navigate to doctor chat after a short delay
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          Navigator.pushNamed(context, '/doctor-chats');
+        }
+      });
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Failed to send request. Please try again.'),
+          content: Text('Failed to connect with doctor. Please try again.'),
           backgroundColor: AppColors.error,
         ),
       );

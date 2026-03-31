@@ -592,6 +592,18 @@ class _DashboardTab extends StatelessWidget {
         onTap: () => Navigator.pushNamed(context, '/voice-assistant'),
       ),
       _QuickAction(
+        title: 'Doctor Chat',
+        icon: Icons.message_rounded,
+        gradient: AppGradients.doctor,
+        onTap: () => Navigator.pushNamed(context, '/doctor-chats'),
+      ),
+      _QuickAction(
+        title: 'Browse Doctors',
+        icon: Icons.medical_services_rounded,
+        gradient: AppGradients.cardWarm,
+        onTap: () => Navigator.pushNamed(context, '/doctor-list'),
+      ),
+      _QuickAction(
         title: AppStrings.games,
         icon: Icons.sports_esports_rounded,
         gradient: AppGradients.cardWarm,

@@ -31,6 +31,8 @@ import 'features/profile/presentation/profile_setup_screen.dart';
 import 'features/profile/presentation/full_profile_screen.dart';
 import 'features/home/presentation/home_screen.dart';
 import 'features/chat/presentation/chat_screen.dart';
+import 'features/chat/presentation/doctor_chat_list_screen.dart';
+import 'features/chat/presentation/doctor_patient_chat_screen.dart';
 import 'features/activities/presentation/modules_library_screen.dart';
 import 'features/progress/presentation/progress_screen.dart';
 import 'features/settings/presentation/settings_screen.dart';
@@ -47,6 +49,7 @@ import 'features/achievements/presentation/achievements_screen.dart';
 import 'features/voice/presentation/voice_assistant_screen.dart';
 import 'features/voice/presentation/global_voice_overlay.dart';
 import 'features/doctor/presentation/doctor_dashboard_screen.dart';
+import 'features/doctor/presentation/doctor_list_screen.dart';
 import 'features/doctor/presentation/patient_detail_screen.dart';
 import 'features/doctor/presentation/assign_plan_screen.dart';
 import 'features/doctor/presentation/compose_guidance_note_screen.dart';
@@ -575,6 +578,7 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
         '/profile-setup': (context) => const ProfileSetupScreen(),
         '/home': (context) => const HomeScreen(),
         '/chat': (context) => const ChatScreen(),
+        '/doctor-chats': (context) => const DoctorChatListScreen(),
         '/activities': (context) => const ModulesLibraryScreen(),
         '/progress': (context) => const ProgressScreen(),
         '/settings': (context) => const SettingsScreen(),
@@ -590,6 +594,7 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
         '/achievements': (context) => const AchievementsScreen(),
         '/voice-assistant': (context) => const VoiceAssistantScreen(),
         '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
+        '/doctor-list': (context) => const DoctorListScreen(),
         '/behavioral-assessment': (context) => const BehavioralAssessmentScreen(),
         '/mental-health-assessment': (context) => const AssessmentScreen(),
         '/patient-detail': (context) {
