@@ -13,7 +13,7 @@ class DoctorRequestsTab extends StatefulWidget {
 
 class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
   final _firebaseService = FirebaseService();
-  List<Map<String, dynamic>> _patients = [];
+  List<Map<String, dynamic>> _requests = [];
   bool _isLoading = true;
 
   @override
@@ -24,15 +24,38 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
 
   Future<void> _load() async {
     try {
-      final patients = await _firebaseService.getDoctorPatients();
+      final requests = await _firebaseService.getDoctorRequests();
       if (!mounted) return;
       setState(() {
-        _patients = patients;
+        _requests = requests;
         _isLoading = false;
       });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _respondToRequest(
+    Map<String, dynamic> request,
+    bool approve,
+  ) async {
+    final requestId = request['requestId'] as String?;
+    if (requestId == null || requestId.isEmpty) return;
+
+    await _firebaseService.respondToDoctorRequest(requestId, approve);
+
+    if (!mounted) return;
+    setState(() {
+      _requests.removeWhere((r) => r['requestId'] == requestId);
+    });
+
+    final childName = (request['childName'] as String?) ?? 'Request';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${approve ? 'Accepted' : 'Declined'} $childName'),
+        backgroundColor: approve ? AppColors.success : AppColors.error,
+      ),
+    );
   }
 
   @override
@@ -60,14 +83,14 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
                 color: AppColors.doctorPrimary,
                 onRefresh: _load,
                 child:
-                    _patients.isEmpty
+                    _requests.isEmpty
                         ? _buildEmptyState(isDark)
                         : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-                          itemCount: _patients.length,
+                          itemCount: _requests.length,
                           itemBuilder:
                               (context, index) => _buildRequestCard(
-                                _patients[index],
+                                _requests[index],
                                 isDark,
                                 index,
                               ),
@@ -76,15 +99,13 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
     );
   }
 
-  Widget _buildRequestCard(
-    Map<String, dynamic> patient,
-    bool isDark,
-    int index,
-  ) {
-    final childName = patient['childName'] as String;
-    final parentName = patient['parentName'] as String;
-    final conditions = patient['conditions'] as List<String>;
-    final age = patient['childAge'];
+  Widget _buildRequestCard(Map<String, dynamic> request, bool isDark, int index) {
+    final childName = (request['childName'] as String?) ?? 'Adult User';
+    final parentName = (request['parentName'] as String?) ?? 'User';
+    final conditions = List<String>.from(request['conditions'] ?? const []);
+    final age = request['childAge'] ?? 18;
+    final isAdultConsult = (request['isAdultConsultation'] as bool?) ?? false;
+    final consultNote = (request['consultNote'] as String?)?.trim() ?? '';
 
     return Container(
           margin: const EdgeInsets.only(bottom: 14),
@@ -146,7 +167,9 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Age $age  •  Parent: $parentName',
+                          isAdultConsult
+                              ? 'Adult Consultation • $parentName'
+                              : 'Age $age  •  Parent: $parentName',
                           style: TextStyle(
                             fontSize: 12,
                             color:
@@ -211,6 +234,30 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
                           .toList(),
                 ),
               ],
+              if (consultNote.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color:
+                        isDark
+                            ? AppColors.darkSurfaceVariant
+                            : AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    consultNote,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                          isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -218,14 +265,7 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
                     child: SizedBox(
                       height: 42,
                       child: ElevatedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Accepted $childName'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        },
+                        onPressed: () => _respondToRequest(request, true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.doctorPrimary,
                           foregroundColor: Colors.white,
@@ -248,14 +288,7 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
                     child: SizedBox(
                       height: 42,
                       child: OutlinedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Declined $childName'),
-                              backgroundColor: AppColors.error,
-                            ),
-                          );
-                        },
+                        onPressed: () => _respondToRequest(request, false),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.error,
                           side: const BorderSide(color: AppColors.error),
@@ -317,7 +350,7 @@ class _DoctorRequestsTabState extends State<DoctorRequestsTab> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Patient requests will appear here.',
+                'Consultation requests will appear here.',
                 style: TextStyle(
                   fontSize: 14,
                   color:

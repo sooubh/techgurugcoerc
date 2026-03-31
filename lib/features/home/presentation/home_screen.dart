@@ -614,10 +614,16 @@ class _DashboardTab extends StatelessWidget {
         onTap: () => Navigator.pushNamed(context, '/wellness'),
       ),
       _QuickAction(
-        title: 'Adult Health',
-        icon: Icons.psychology_rounded,
+        title: 'Talk Feelings',
+        icon: Icons.chat_bubble_rounded,
         gradient: AppGradients.doctor,
         onTap: () => Navigator.pushNamed(context, '/adult-wellness'),
+      ),
+      _QuickAction(
+        title: 'Consult Doctor',
+        icon: Icons.medical_services_rounded,
+        gradient: AppGradients.hero,
+        onTap: () => Navigator.pushNamed(context, '/adult-consultation'),
       ),
       _QuickAction(
         title: 'Community',

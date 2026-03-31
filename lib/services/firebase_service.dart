@@ -960,6 +960,49 @@ class FirebaseService {
 
   // ─── Doctor Portal Queries ────────────────────────────────
 
+  /// Fetch all doctors available for consultation.
+  Future<List<DoctorModel>> getAvailableDoctors() async {
+    final snapshot =
+        await _firestore
+            .collection('users')
+            .where('role', isEqualTo: 'doctor')
+            .get();
+
+    return snapshot.docs
+        .map((doc) => DoctorModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  /// Send an adult consultation request to a doctor.
+  Future<void> sendAdultConsultationRequest({
+    required String doctorId,
+    String? note,
+  }) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('User not authenticated');
+
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final userData = userDoc.data() ?? <String, dynamic>{};
+
+    await _firestore.collection('doctor_requests').add({
+      'doctorId': doctorId,
+      'parentId': uid,
+      'parentName':
+          (userData['displayName'] as String?)?.trim().isNotEmpty == true
+              ? userData['displayName']
+              : 'Adult User',
+      'parentEmail': userData['email'] ?? currentUser?.email ?? '',
+      'childName': 'Adult User',
+      'childAge': 18,
+      'conditions': ['Adult mental wellness consultation'],
+      'requestType': 'adult_consultation',
+      'isAdultConsultation': true,
+      'consultNote': note?.trim() ?? '',
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   /// Fetch pending patient connection requests.
   Future<List<Map<String, dynamic>>> getDoctorRequests() async {
     final uid = currentUser?.uid;
