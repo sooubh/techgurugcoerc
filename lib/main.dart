@@ -38,6 +38,7 @@ import 'features/daily_plan/presentation/daily_plan_screen.dart';
 import 'features/emergency/presentation/emergency_screen.dart';
 import 'features/games/presentation/games_hub_screen.dart';
 import 'features/wellness/presentation/wellness_screen.dart';
+import 'features/wellness/presentation/adult_wellness_screen.dart';
 import 'features/report/presentation/doctor_report_screen.dart';
 import 'features/about/presentation/about_screen.dart';
 import 'features/community/presentation/community_screen.dart';
@@ -580,6 +581,7 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
         '/emergency': (context) => const EmergencyScreen(),
         '/games': (context) => const GamesHubScreen(),
         '/wellness': (context) => const WellnessScreen(),
+        '/adult-wellness': (context) => const AdultWellnessScreen(),
         '/doctor-report': (context) => const DoctorReportScreen(),
         '/about': (context) => const AboutScreen(),
         '/community': (context) => const CommunityScreen(),
